@@ -2,8 +2,16 @@
 
 import { Copy, Sparkles } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarTrigger,
+} from "@/components/ui/menubar";
 
 type QueryHeaderActionsProps = {
   contextLabel: string;
@@ -33,51 +41,50 @@ export function QueryHeaderActions({
       <div>
         <h2 className="text-sm font-semibold">SQL Query</h2>
       </div>
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={onFormat} disabled={!hasSql}>
-          <span className="inline-flex items-center gap-2">
-            <Sparkles className="size-4" />
-            <span>Format</span>
-            <Kbd className="opacity-70">⌘ + L</Kbd>
-          </span>
-        </Button>
-        <Button size="sm" variant="outline" onClick={onCopy} disabled={!hasSql}>
-          <span className="inline-flex items-center gap-2">
-            <Copy className="size-4" />
-            <span>Copy</span>
-          </span>
-        </Button>
-        <Button
-          size="sm"
-          variant="default"
-          onClick={onExecute}
-          disabled={!canExecute || isExecuting}
-        >
-          <span className="inline-flex items-center gap-2">
-            <span>{isExecuting ? "Running" : "Execute"}</span>
-            <Kbd className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30 opacity-90">
-              ⌘ + Enter
-            </Kbd>
-          </span>
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onExplain}
-          disabled={!canExecute || isExecuting}
-        >
-          <span className="inline-flex items-center gap-2">
-            <span>Explain Analyze</span>
-            <Kbd className="opacity-70">⌘ + ⇧ + Enter</Kbd>
-          </span>
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <span className="inline-flex items-center gap-2">
-            <span>Close</span>
-            <Kbd className="opacity-70">⌘ + Q</Kbd>
-          </span>
-        </Button>
-      </div>
+      <Menubar>
+        <MenubarMenu>
+          <MenubarTrigger>Actions</MenubarTrigger>
+          <MenubarContent align="end">
+            <MenubarItem onSelect={onFormat} disabled={!hasSql}>
+              <Sparkles className="size-4" />
+              Format
+              <MenubarShortcut>
+                <Kbd className="opacity-70">⌘ + L</Kbd>
+              </MenubarShortcut>
+            </MenubarItem>
+            <MenubarItem onSelect={onCopy} disabled={!hasSql}>
+              <Copy className="size-4" />
+              Copy
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem
+              onSelect={onExecute}
+              disabled={!canExecute || isExecuting}
+            >
+              {isExecuting ? "Running" : "Execute"}
+              <MenubarShortcut>
+                <Kbd className="opacity-70">⌘ + Enter</Kbd>
+              </MenubarShortcut>
+            </MenubarItem>
+            <MenubarItem
+              onSelect={onExplain}
+              disabled={!canExecute || isExecuting}
+            >
+              Explain Analyze
+              <MenubarShortcut>
+                <Kbd className="opacity-70">⌘ + ⇧ + Enter</Kbd>
+              </MenubarShortcut>
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem onSelect={onClose}>
+              Close
+              <MenubarShortcut>
+                <Kbd className="opacity-70">⌘ + Q</Kbd>
+              </MenubarShortcut>
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>
     </header>
   );
 }

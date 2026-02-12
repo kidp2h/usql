@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-console.log('[Preload] Loading...');
+console.log("[Preload] Loading...");
 
 // Database & App APIs
 contextBridge.exposeInMainWorld("electron", {
@@ -14,4 +14,5 @@ contextBridge.exposeInMainWorld("electron", {
   getIndexes: (connection, schema, table) =>
     ipcRenderer.invoke("get-indexes", { connection, schema, table }),
   executeQuery: (payload) => ipcRenderer.invoke("execute-query", payload),
+  saveQuery: (payload) => ipcRenderer.invoke("save-query", payload),
 });

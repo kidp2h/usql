@@ -1,9 +1,9 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,12 +41,10 @@ type FormValues = z.infer<typeof formSchema>;
 
 type ConnectionFormProps = {
   defaultValues?: Partial<FormValues>;
-  onSubmit: (
-    values: FormValues
-  ) =>
-    | void
+  onSubmit: (values: FormValues) =>
+    | undefined
     | Promise<
-        | void
+        | undefined
         | {
             ok: boolean;
             message?: string;
@@ -131,7 +129,7 @@ export function ConnectionForm({
         setSubmitState("idle");
       }
     },
-    [onSubmit]
+    [onSubmit],
   );
 
   return (

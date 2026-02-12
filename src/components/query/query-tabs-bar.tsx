@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Database, FileText, Folder, Table, X } from "lucide-react";
+import * as React from "react";
 
 import {
   ContextMenu,
@@ -30,10 +30,32 @@ export function QueryTabsBar({
   onReorderTabs,
 }: QueryTabsBarProps) {
   const [draggedTabIndex, setDraggedTabIndex] = React.useState<number | null>(
-    null
+    null,
   );
   const [dragOverTabIndex, setDragOverTabIndex] = React.useState<number | null>(
-    null
+    null,
+  );
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  const handleWheel = React.useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      const target = scrollRef.current;
+      if (!target || event.shiftKey) {
+        return;
+      }
+
+      if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
+        return;
+      }
+
+      if (target.scrollWidth <= target.clientWidth) {
+        return;
+      }
+
+      event.preventDefault();
+      target.scrollLeft += event.deltaY;
+    },
+    [],
   );
 
   const renderTabIcon = (icon: QueryTab["icon"]) => {
@@ -50,12 +72,17 @@ export function QueryTabsBar({
   };
 
   return (
-    <div className="flex items-center gap-2 border-b px-2 py-2">
-      <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+    <div className="flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden border-b px-2 py-2">
+      <div
+        ref={scrollRef}
+        onWheel={handleWheel}
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth"
+      >
         {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
           const isDragging = draggedTabIndex === index;
           const isDragOver = dragOverTabIndex === index;
+          const isDirty = (tab.savedSql ?? tab.sql) !== tab.sql;
 
           return (
             <ContextMenu key={tab.id}>
@@ -81,7 +108,10 @@ export function QueryTabsBar({
                     onDragOver={(event) => {
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
-                      if (draggedTabIndex !== null && draggedTabIndex !== index) {
+                      if (
+                        draggedTabIndex !== null &&
+                        draggedTabIndex !== index
+                      ) {
                         setDragOverTabIndex(index);
                       }
                     }}
@@ -90,7 +120,10 @@ export function QueryTabsBar({
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
-                      if (draggedTabIndex !== null && draggedTabIndex !== index) {
+                      if (
+                        draggedTabIndex !== null &&
+                        draggedTabIndex !== index
+                      ) {
                         onReorderTabs(draggedTabIndex, index);
                       }
                       setDraggedTabIndex(null);
@@ -103,6 +136,14 @@ export function QueryTabsBar({
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
                     {renderTabIcon(tab.icon)}
+                    {isDirty ? (
+                      <span
+                        className="text-amber-500"
+                        title="Unsaved"
+                      >
+                        •
+                      </span>
+                    ) : null}
                     <span className="max-w-40 truncate">{tab.title}</span>
                   </button>
                   <span className="flex items-center gap-1">
@@ -113,7 +154,7 @@ export function QueryTabsBar({
                         event.stopPropagation();
                         onCloseTab(tab.id);
                       }}
-                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="rounded p-0.5 text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
                       aria-label={`Close ${tab.title}`}
                     >
                       <X className="size-3.5" />
@@ -128,7 +169,7 @@ export function QueryTabsBar({
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCloseAllTabs()}>
                   Close all tabs
-                  <Kbd className="ml-auto text-xs">⌘ + Shift + W</Kbd>
+                  <Kbd className="ml-auto text-xs">⌘ + ⇧ + W</Kbd>
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>

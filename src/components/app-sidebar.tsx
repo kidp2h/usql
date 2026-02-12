@@ -1,26 +1,39 @@
-"use client"
+"use client";
 
-import * as React from "react"
 import {
   Database,
   Dot,
+  Edit,
   Folder,
   KeyRound,
   Link2,
   ListTree,
+  RefreshCw,
   Table,
   Trash2,
-  Edit,
-  RefreshCw,
-} from "lucide-react"
+} from "lucide-react";
+import Link from "next/link";
+import * as React from "react";
+import {
+  ConnectionForm,
+  type ConnectionFormValues,
+} from "@/components/connection-form";
+import { SidebarConnectionDrawer } from "@/components/sidebar-connection-drawer";
+import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu"
-import { Kbd } from "@/components/ui/kbd"
-
+} from "@/components/ui/context-menu";
+import { Kbd } from "@/components/ui/kbd";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Sidebar,
   SidebarContent,
@@ -33,135 +46,123 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
-import Link from "next/link"
-import { useSidebarStore } from "@/stores/sidebar-store"
-import { SidebarConnectionDrawer } from "@/components/sidebar-connection-drawer"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
-  ConnectionForm,
-  type ConnectionFormValues,
-} from "@/components/connection-form"
-import { Button } from "@/components/ui/button"
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { useSidebarStore } from "@/stores/sidebar-store";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const navMain = useSidebarStore((state) => state.navMain)
-  const connections = useSidebarStore((state) => state.connections)
-  const deleteConnection = useSidebarStore((state) => state.deleteConnection)
-  const updateConnection = useSidebarStore((state) => state.updateConnection)
+  const navMain = useSidebarStore((state) => state.navMain);
+  const { setOpen }  = useSidebar();
+  const connections = useSidebarStore((state) => state.connections);
+  const deleteConnection = useSidebarStore((state) => state.deleteConnection);
+  const updateConnection = useSidebarStore((state) => state.updateConnection);
   const selectedConnectionId = useSidebarStore(
-    (state) => state.selectedConnectionId
-  )
-  const selectedSchema = useSidebarStore((state) => state.selectedSchema)
-  const selectedTable = useSidebarStore((state) => state.selectedTable)
-  const openQuery = useSidebarStore((state) => state.openQuery)
+    (state) => state.selectedConnectionId,
+  );
+  const selectedSchema = useSidebarStore((state) => state.selectedSchema);
+  const selectedTable = useSidebarStore((state) => state.selectedTable);
+  const openQuery = useSidebarStore((state) => state.openQuery);
+  const viewComments = useSidebarStore((state) => state.viewComments);
   const setConnectionLoading = useSidebarStore(
-    (state) => state.setConnectionLoading
-  )
+    (state) => state.setConnectionLoading,
+  );
   const setConnectionError = useSidebarStore(
-    (state) => state.setConnectionError
-  )
+    (state) => state.setConnectionError,
+  );
   const setConnectionSchemas = useSidebarStore(
-    (state) => state.setConnectionSchemas
-  )
+    (state) => state.setConnectionSchemas,
+  );
   const setSelectedConnection = useSidebarStore(
-    (state) => state.setSelectedConnection
-  )
-  const setSelectedSchema = useSidebarStore((state) => state.setSelectedSchema)
-  const setSelectedTable = useSidebarStore((state) => state.setSelectedTable)
-  const setSchemaLoading = useSidebarStore((state) => state.setSchemaLoading)
-  const setSchemaError = useSidebarStore((state) => state.setSchemaError)
-  const setSchemaTables = useSidebarStore((state) => state.setSchemaTables)
+    (state) => state.setSelectedConnection,
+  );
+  const setSelectedSchema = useSidebarStore((state) => state.setSelectedSchema);
+  const setSelectedTable = useSidebarStore((state) => state.setSelectedTable);
+  const setSchemaLoading = useSidebarStore((state) => state.setSchemaLoading);
+  const setSchemaError = useSidebarStore((state) => state.setSchemaError);
+  const setSchemaTables = useSidebarStore((state) => state.setSchemaTables);
   const [expandedConnections, setExpandedConnections] = React.useState<
     Record<string, boolean>
-  >({})
+  >({});
   const setTableColumnsLoading = useSidebarStore(
-    (state) => state.setTableColumnsLoading
-  )
+    (state) => state.setTableColumnsLoading,
+  );
   const setTableColumnsError = useSidebarStore(
-    (state) => state.setTableColumnsError
-  )
-  const setTableColumns = useSidebarStore((state) => state.setTableColumns)
+    (state) => state.setTableColumnsError,
+  );
+  const setTableColumns = useSidebarStore((state) => state.setTableColumns);
   const setTableIndexesLoading = useSidebarStore(
-    (state) => state.setTableIndexesLoading
-  )
+    (state) => state.setTableIndexesLoading,
+  );
   const setTableIndexesError = useSidebarStore(
-    (state) => state.setTableIndexesError
-  )
-  const setTableIndexes = useSidebarStore((state) => state.setTableIndexes)
+    (state) => state.setTableIndexesError,
+  );
+  const setTableIndexes = useSidebarStore((state) => state.setTableIndexes);
   const [expandedSchemas, setExpandedSchemas] = React.useState<
     Record<string, boolean>
-  >({})
+  >({});
   const [expandedTables, setExpandedTables] = React.useState<
     Record<string, boolean>
-  >({})
+  >({});
   const [expandedTableColumns, setExpandedTableColumns] = React.useState<
     Record<string, boolean>
-  >({})
+  >({});
   const [expandedTableIndexes, setExpandedTableIndexes] = React.useState<
     Record<string, boolean>
-  >({})
-  const [editingConnection, setEditingConnection] = React.useState<
-    { id: string; config: ConnectionFormValues } | null
-  >(null)
+  >({});
+  const [editingConnection, setEditingConnection] = React.useState<{
+    id: string;
+    config: ConnectionFormValues;
+  } | null>(null);
   const electronApi = (
     globalThis as typeof globalThis & { electron?: Window["electron"] }
-  ).electron
-  const getSchemas = electronApi?.getSchemas
-  const getTables = electronApi?.getTables
-  const getColumns = electronApi?.getColumns
-  const getIndexes = electronApi?.getIndexes
+  ).electron;
+  const getSchemas = electronApi?.getSchemas;
+  const getTables = electronApi?.getTables;
+  const getColumns = electronApi?.getColumns;
+  const getIndexes = electronApi?.getIndexes;
 
   const ensureTableColumnsLoaded = React.useCallback(
     async (connectionId: string, schemaName: string, tableName: string) => {
       const connection = connections.find(
-        (item) => item.config.id === connectionId
-      )
+        (item) => item.config.id === connectionId,
+      );
 
       if (!connection || !getColumns) {
-        return
+        return;
       }
 
-      const schema = connection.schemas.find((item) => item.name === schemaName)
+      const schema = connection.schemas.find(
+        (item) => item.name === schemaName,
+      );
 
       if (!schema) {
-        return
+        return;
       }
 
-      const existing = schema.tableColumns?.[tableName]
-      const loading = schema.tableColumnsLoading?.[tableName]
+      const existing = schema.tableColumns?.[tableName];
+      const loading = schema.tableColumnsLoading?.[tableName];
 
       if ((existing && existing.length > 0) || loading) {
-        return
+        return;
       }
 
-      setTableColumnsLoading(connectionId, schemaName, tableName, true)
-      setTableColumnsError(connectionId, schemaName, tableName, undefined)
+      setTableColumnsLoading(connectionId, schemaName, tableName, true);
+      setTableColumnsError(connectionId, schemaName, tableName, undefined);
 
-      const result = await getColumns(
-        connection.config,
-        schemaName,
-        tableName
-      )
+      const result = await getColumns(connection.config, schemaName, tableName);
 
       if (result.ok && result.columns) {
-        setTableColumns(connectionId, schemaName, tableName, result.columns)
+        setTableColumns(connectionId, schemaName, tableName, result.columns);
       } else {
         setTableColumnsError(
           connectionId,
           schemaName,
           tableName,
-          result.message || "Failed to load columns."
-        )
+          result.message || "Failed to load columns.",
+        );
       }
 
-      setTableColumnsLoading(connectionId, schemaName, tableName, false)
+      setTableColumnsLoading(connectionId, schemaName, tableName, false);
     },
     [
       connections,
@@ -169,53 +170,51 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setTableColumns,
       setTableColumnsError,
       setTableColumnsLoading,
-    ]
-  )
+    ],
+  );
 
   const ensureTableIndexesLoaded = React.useCallback(
     async (connectionId: string, schemaName: string, tableName: string) => {
       const connection = connections.find(
-        (item) => item.config.id === connectionId
-      )
+        (item) => item.config.id === connectionId,
+      );
 
       if (!connection || !getIndexes) {
-        return
+        return;
       }
 
-      const schema = connection.schemas.find((item) => item.name === schemaName)
+      const schema = connection.schemas.find(
+        (item) => item.name === schemaName,
+      );
 
       if (!schema) {
-        return
+        return;
       }
 
-      const existing = schema.tableIndexes?.[tableName]
-      const loading = schema.tableIndexesLoading?.[tableName]
+      const existing = schema.tableIndexes?.[tableName];
+      const loading = schema.tableIndexesLoading?.[tableName];
 
       if ((existing && existing.length > 0) || loading) {
-        return
+        return;
       }
 
-      setTableIndexesLoading(connectionId, schemaName, tableName, true)
-      setTableIndexesError(connectionId, schemaName, tableName, undefined)
+      setTableIndexesLoading(connectionId, schemaName, tableName, true);
+      setTableIndexesError(connectionId, schemaName, tableName, undefined);
 
-      const result = await getIndexes(
-        connection.config,
-        schemaName,
-        tableName
-      )
+      const result = await getIndexes(connection.config, schemaName, tableName);
 
       if (result.ok && result.indexes) {
-        setTableIndexes(connectionId, schemaName, tableName, result.indexes)
+        setTableIndexes(connectionId, schemaName, tableName, result.indexes);
       } else {
         setTableIndexesError(
           connectionId,
           schemaName,
           tableName,
-          result.message || "Failed to load indexes."
-        )
+          result.message || "Failed to load indexes.",
+        );
       }
 
-      setTableIndexesLoading(connectionId, schemaName, tableName, false)
+      setTableIndexesLoading(connectionId, schemaName, tableName, false);
     },
     [
       connections,
@@ -223,21 +222,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setTableIndexes,
       setTableIndexesError,
       setTableIndexesLoading,
-    ]
-  )
+    ],
+  );
 
   React.useEffect(() => {
     const loadPersistedSelection = async () => {
       if (!selectedConnectionId) {
-        return
+        return;
       }
 
       const connection = connections.find(
-        (item) => item.config.id === selectedConnectionId
-      )
+        (item) => item.config.id === selectedConnectionId,
+      );
 
       if (!connection) {
-        return
+        return;
       }
 
       if (
@@ -245,62 +244,61 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         !connection.loading &&
         getSchemas
       ) {
-        setConnectionLoading(selectedConnectionId, true)
-        setConnectionError(selectedConnectionId, undefined)
+        setConnectionLoading(selectedConnectionId, true);
+        setConnectionError(selectedConnectionId, undefined);
 
-        const result = await getSchemas(connection.config)
+        const result = await getSchemas(connection.config);
 
         if (result.ok && result.schemas) {
-          setConnectionSchemas(selectedConnectionId, result.schemas)
+          setConnectionSchemas(selectedConnectionId, result.schemas);
         } else {
           setConnectionError(
             selectedConnectionId,
-            result.message || "Failed to load schemas."
-          )
+            result.message || "Failed to load schemas.",
+          );
         }
 
-        setConnectionLoading(selectedConnectionId, false)
+        setConnectionLoading(selectedConnectionId, false);
       }
 
       if (!selectedSchema || !getTables) {
-        return
+        return;
       }
 
       const schema = connection.schemas.find(
-        (item) => item.name === selectedSchema.name
-      )
+        (item) => item.name === selectedSchema.name,
+      );
 
       if (!schema || schema.tables.length > 0 || schema.loading) {
-        return
+        return;
       }
 
-      setSchemaLoading(selectedConnectionId, selectedSchema.name, true)
-      setSchemaError(selectedConnectionId, selectedSchema.name, undefined)
+      setSchemaLoading(selectedConnectionId, selectedSchema.name, true);
+      setSchemaError(selectedConnectionId, selectedSchema.name, undefined);
 
       const tablesResult = await getTables(
         connection.config,
-        selectedSchema.name
-      )
+        selectedSchema.name,
+      );
 
       if (tablesResult.ok && tablesResult.tables) {
         setSchemaTables(
           selectedConnectionId,
           selectedSchema.name,
-          tablesResult.tables
-        )
+          tablesResult.tables,
+        );
       } else {
         setSchemaError(
           selectedConnectionId,
           selectedSchema.name,
-          tablesResult.message || "Failed to load tables."
-        )
+          tablesResult.message || "Failed to load tables.",
+        );
       }
 
-      setSchemaLoading(selectedConnectionId, selectedSchema.name, false)
+      setSchemaLoading(selectedConnectionId, selectedSchema.name, false);
+    };
 
-    }
-
-    void loadPersistedSelection()
+    void loadPersistedSelection();
   }, [
     connections,
     getSchemas,
@@ -313,49 +311,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     setSchemaError,
     setSchemaLoading,
     setSchemaTables,
-  ])
+  ]);
 
   React.useEffect(() => {
     if (selectedConnectionId) {
       setExpandedConnections((prev) => ({
         ...prev,
         [selectedConnectionId]: true,
-      }))
+      }));
     }
 
     if (selectedSchema) {
-      const key = `${selectedSchema.connectionId}:${selectedSchema.name}`
+      const key = `${selectedSchema.connectionId}:${selectedSchema.name}`;
       setExpandedSchemas((prev) => ({
         ...prev,
         [key]: true,
-      }))
+      }));
     }
 
     if (selectedTable) {
-      const key = `${selectedTable.connectionId}:${selectedTable.schema}`
+      const key = `${selectedTable.connectionId}:${selectedTable.schema}`;
       setExpandedSchemas((prev) => ({
         ...prev,
         [key]: true,
-      }))
+      }));
     }
-  }, [selectedConnectionId, selectedSchema, selectedTable])
+  }, [selectedConnectionId, selectedSchema, selectedTable]);
 
   const handleNewQuery = React.useCallback(
     (context: {
-      connectionId: string
-      connectionName: string
-      schema?: string
-      table?: string
+      connectionId: string;
+      connectionName: string;
+      schema?: string;
+      table?: string;
     }) => {
-      openQuery(context)
+      openQuery(context);
+      setOpen(false);
     },
-    [openQuery]
-  )
+    [openQuery],
+  );
+
+  const handleViewComments = React.useCallback(
+    (context: {
+      connectionId: string;
+      connectionName: string;
+      schema?: string;
+      table?: string;
+    }) => {
+      viewComments(context);
+      setOpen(false);
+    },
+    [viewComments],
+  );
 
   const handleEditConnection = React.useCallback(
     (connectionId: string) => {
-      const connection = connections.find((c) => c.config.id === connectionId)
-      if (!connection) return
+      const connection = connections.find((c) => c.config.id === connectionId);
+      if (!connection) return;
 
       setEditingConnection({
         id: connectionId,
@@ -370,72 +382,78 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ssl: connection.config.ssl,
           readOnly: connection.config.readOnly,
         },
-      })
+      });
     },
-    [connections]
-  )
+    [connections],
+  );
 
   const handleDeleteConnection = React.useCallback(
     (connectionId: string) => {
       if (confirm("Are you sure you want to delete this connection?")) {
-        deleteConnection(connectionId)
+        deleteConnection(connectionId);
       }
     },
-    [deleteConnection]
-  )
+    [deleteConnection],
+  );
 
   const handleRefreshConnection = React.useCallback(
     async (connectionId: string) => {
-      const connection = connections.find((c) => c.config.id === connectionId)
+      const connection = connections.find((c) => c.config.id === connectionId);
       if (!connection || !getSchemas) {
-        return
+        return;
       }
 
-      setConnectionLoading(connectionId, true)
-      setConnectionError(connectionId, undefined)
+      setConnectionLoading(connectionId, true);
+      setConnectionError(connectionId, undefined);
 
-      const result = await getSchemas(connection.config)
+      const result = await getSchemas(connection.config);
 
       if (result.ok && result.schemas) {
-        setConnectionSchemas(connectionId, result.schemas)
+        setConnectionSchemas(connectionId, result.schemas);
       } else {
         setConnectionError(
           connectionId,
-          result.message || "Failed to load schemas."
-        )
+          result.message || "Failed to load schemas.",
+        );
       }
 
-      setConnectionLoading(connectionId, false)
+      setConnectionLoading(connectionId, false);
     },
-    [connections, getSchemas, setConnectionLoading, setConnectionError, setConnectionSchemas]
-  )
+    [
+      connections,
+      getSchemas,
+      setConnectionLoading,
+      setConnectionError,
+      setConnectionSchemas,
+    ],
+  );
 
   const handleUpdateConnection = React.useCallback(
     async (values: ConnectionFormValues) => {
       if (!editingConnection) {
-        return { ok: false, message: "No connection selected for editing." }
+        return { ok: false, message: "No connection selected for editing." };
       }
 
-      const normalizedName = values.name.trim().toLowerCase()
+      const normalizedName = values.name.trim().toLowerCase();
       const hasDuplicate = connections.some(
         (connection) =>
           connection.config.id !== editingConnection.id &&
-          connection.config.name.trim().toLowerCase() === normalizedName
-      )
+          connection.config.name.trim().toLowerCase() === normalizedName,
+      );
 
       if (hasDuplicate) {
-        return { ok: false, message: "Database name already exists." }
+        return { ok: false, message: "Database name already exists." };
       }
 
       const electron = (
         globalThis as typeof globalThis & { electron?: Window["electron"] }
-      ).electron
+      ).electron;
 
       if (!electron?.testConnection) {
-        return { ok: false, message: "Test only works in the desktop app." }
+        return { ok: false, message: "Test only works in the desktop app." };
       }
 
-      const result = await electron.testConnection(values)
+      const result = await electron.testConnection(values);
 
       if (result.ok) {
         updateConnection(editingConnection.id, {
@@ -448,57 +466,92 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           password: values.password,
           ssl: values.ssl,
           readOnly: values.readOnly,
-        })
-        setEditingConnection(null)
-        return { ok: true, message: "Connection updated." }
+        });
+        setEditingConnection(null);
+        return { ok: true, message: "Connection updated." };
       }
 
-      return { ok: false, message: result.message || "Connection failed." }
+      return { ok: false, message: result.message || "Connection failed." };
     },
-    [editingConnection, connections, updateConnection]
-  )
+    [editingConnection, connections, updateConnection],
+  );
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "n") {
-        return
+      if (
+        !(event.ctrlKey || event.metaKey) ||
+        event.key.toLowerCase() !== "n"
+      ) {
+        return;
       }
 
       const targetConnectionId =
         selectedTable?.connectionId ||
         selectedSchema?.connectionId ||
-        selectedConnectionId
+        selectedConnectionId;
 
       if (!targetConnectionId) {
-        return
+        return;
       }
 
       const connection = connections.find(
-        (item) => item.config.id === targetConnectionId
-      )
+        (item) => item.config.id === targetConnectionId,
+      );
 
       if (!connection) {
-        return
+        return;
       }
 
-      event.preventDefault()
+      event.preventDefault();
       handleNewQuery({
         connectionId: targetConnectionId,
         connectionName: connection.config.name,
         schema: selectedTable?.schema || selectedSchema?.name,
         table: selectedTable?.name,
-      })
-    }
+      });
+    };
 
-    globalThis.addEventListener("keydown", onKeyDown)
-    return () => globalThis.removeEventListener("keydown", onKeyDown)
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, [
     connections,
     handleNewQuery,
     selectedConnectionId,
     selectedSchema,
     selectedTable,
-  ])
+  ]);
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        !(event.ctrlKey || event.metaKey) ||
+        !event.shiftKey ||
+        event.key.toLowerCase() !== "r"
+      ) {
+        return;
+      }
+
+      const targetConnectionId =
+        selectedTable?.connectionId ||
+        selectedSchema?.connectionId ||
+        selectedConnectionId;
+
+      if (!targetConnectionId) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleRefreshConnection(targetConnectionId);
+    };
+
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleRefreshConnection,
+    selectedConnectionId,
+    selectedSchema,
+    selectedTable,
+  ]);
 
   const renderDisabledSubItem = React.useCallback((label: string) => {
     return (
@@ -510,57 +563,57 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {label}
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
-    )
-  }, [])
+    );
+  }, []);
 
   const renderTables = React.useCallback(
     (
       connectionId: string,
       schema: {
-        name: string
-        tables: string[]
-        loading: boolean
-        error?: string
+        name: string;
+        tables: string[];
+        loading: boolean;
+        error?: string;
         tableColumns: Record<
           string,
           { name: string; isPrimary: boolean; isForeign: boolean }[]
-        >
-        tableColumnsLoading: Record<string, boolean>
-        tableColumnsError: Record<string, string | undefined>
-        tableIndexes: Record<string, string[]>
-        tableIndexesLoading: Record<string, boolean>
-        tableIndexesError: Record<string, string | undefined>
-      }
+        >;
+        tableColumnsLoading: Record<string, boolean>;
+        tableColumnsError: Record<string, string | undefined>;
+        tableIndexes: Record<string, string[]>;
+        tableIndexesLoading: Record<string, boolean>;
+        tableIndexesError: Record<string, string | undefined>;
+      },
     ) => {
-      const schemaKey = `${connectionId}:${schema.name}`
+      const schemaKey = `${connectionId}:${schema.name}`;
 
       if (!expandedSchemas[schemaKey]) {
-        return null
+        return null;
       }
 
       if (schema.loading) {
-        return renderDisabledSubItem("Loading tables...")
+        return renderDisabledSubItem("Loading tables...");
       }
 
       if (schema.error) {
-        return renderDisabledSubItem(schema.error)
+        return renderDisabledSubItem(schema.error);
       }
 
       if (schema.tables.length === 0) {
-        return renderDisabledSubItem("No tables found")
+        return renderDisabledSubItem("No tables found");
       }
 
       return schema.tables.map((table) => {
-        const tableKey = `${connectionId}:${schema.name}:${table}`
-        const isExpanded = expandedTables[tableKey]
-        const columnsExpanded = expandedTableColumns[tableKey]
-        const indexesExpanded = expandedTableIndexes[tableKey]
-        const tableColumns = schema.tableColumns?.[table] ?? []
-        const columnsLoading = schema.tableColumnsLoading?.[table]
-        const columnsError = schema.tableColumnsError?.[table]
-        const tableIndexes = schema.tableIndexes?.[table] ?? []
-        const indexesLoading = schema.tableIndexesLoading?.[table]
-        const indexesError = schema.tableIndexesError?.[table]
+        const tableKey = `${connectionId}:${schema.name}:${table}`;
+        const isExpanded = expandedTables[tableKey];
+        const columnsExpanded = expandedTableColumns[tableKey];
+        const indexesExpanded = expandedTableIndexes[tableKey];
+        const tableColumns = schema.tableColumns?.[table] ?? [];
+        const columnsLoading = schema.tableColumnsLoading?.[table];
+        const columnsError = schema.tableColumnsError?.[table];
+        const tableIndexes = schema.tableIndexes?.[table] ?? [];
+        const indexesLoading = schema.tableIndexesLoading?.[table];
+        const indexesError = schema.tableIndexesError?.[table];
 
         return (
           <SidebarMenuSubItem key={table}>
@@ -568,11 +621,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <ContextMenuTrigger asChild>
                 <SidebarMenuSubButton
                   onClick={() => {
-                    setSelectedTable(connectionId, schema.name, table)
+                    setSelectedTable(connectionId, schema.name, table);
                     setExpandedTables((prev) => ({
                       ...prev,
                       [tableKey]: !prev[tableKey],
-                    }))
+                    }));
                   }}
                   className={
                     selectedTable?.connectionId === connectionId &&
@@ -590,26 +643,50 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <ContextMenuItem
                   onSelect={() => {
                     const connection = connections.find(
-                      (item) => item.config.id === connectionId
-                    )
+                      (item) => item.config.id === connectionId,
+                    );
                     if (!connection) {
-                      return
+                      return;
                     }
                     void ensureTableColumnsLoaded(
                       connectionId,
                       schema.name,
-                      table
-                    )
+                      table,
+                    );
                     handleNewQuery({
                       connectionId,
                       connectionName: connection.config.name,
                       schema: schema.name,
                       table,
-                    })
+                    });
                   }}
                 >
                   New query
-                  <Kbd className="ml-auto text-xs">c+N</Kbd>
+                  <Kbd className="ml-auto text-xs">⌘+N</Kbd>
+                </ContextMenuItem>
+                                <ContextMenuItem
+                  onSelect={() => {
+                    const connection = connections.find(
+                      (item) => item.config.id === connectionId,
+                    );
+                    if (!connection) {
+                      return;
+                    }
+                    void ensureTableColumnsLoaded(
+                      connectionId,
+                      schema.name,
+                      table,
+                    );
+                    handleNewQuery({
+                      connectionId,
+                      connectionName: connection.config.name,
+                      schema: schema.name,
+                      table,
+                    });
+                  }}
+                >
+                  View comment
+                  <Kbd className="ml-auto text-xs">⌘+N</Kbd>
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
@@ -621,12 +698,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       setExpandedTableColumns((prev) => ({
                         ...prev,
                         [tableKey]: !prev[tableKey],
-                      }))
+                      }));
                       void ensureTableColumnsLoaded(
                         connectionId,
                         schema.name,
-                        table
-                      )
+                        table,
+                      );
                     }}
                   >
                     <Folder className="size-4 opacity-70" />
@@ -637,23 +714,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {columnsLoading
                         ? renderDisabledSubItem("Loading columns...")
                         : columnsError
-                        ? renderDisabledSubItem(columnsError)
-                        : tableColumns.length === 0
-                        ? renderDisabledSubItem("No columns found")
-                        : tableColumns.map((column) => (
-                            <SidebarMenuSubItem key={column.name}>
-                              <SidebarMenuSubButton className="pointer-events-none">
-                                {column.isPrimary ? (
-                                  <KeyRound className="size-4 text-amber-400" />
-                                ) : column.isForeign ? (
-                                  <Link2 className="size-4 text-muted-foreground" />
-                                ) : (
-                                  <Dot className="size-4 text-muted-foreground" />
-                                )}
-                                {column.name}
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
+                          ? renderDisabledSubItem(columnsError)
+                          : tableColumns.length === 0
+                            ? renderDisabledSubItem("No columns found")
+                            : tableColumns.map((column) => (
+                                <SidebarMenuSubItem key={column.name}>
+                                  <SidebarMenuSubButton className="pointer-events-none">
+                                    {column.isPrimary ? (
+                                      <KeyRound className="size-4 text-amber-400" />
+                                    ) : column.isForeign ? (
+                                      <Link2 className="size-4 text-muted-foreground" />
+                                    ) : (
+                                      <Dot className="size-4 text-muted-foreground" />
+                                    )}
+                                    {column.name}
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
                     </SidebarMenuSub>
                   ) : null}
                 </SidebarMenuSubItem>
@@ -663,12 +740,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       setExpandedTableIndexes((prev) => ({
                         ...prev,
                         [tableKey]: !prev[tableKey],
-                      }))
+                      }));
                       void ensureTableIndexesLoaded(
                         connectionId,
                         schema.name,
-                        table
-                      )
+                        table,
+                      );
                     }}
                   >
                     <Folder className="size-4 opacity-70" />
@@ -679,25 +756,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {indexesLoading
                         ? renderDisabledSubItem("Loading indexes...")
                         : indexesError
-                        ? renderDisabledSubItem(indexesError)
-                        : tableIndexes.length === 0
-                        ? renderDisabledSubItem("No indexes found")
-                        : tableIndexes.map((index) => (
-                            <SidebarMenuSubItem key={index}>
-                              <SidebarMenuSubButton className="pointer-events-none">
-                                <ListTree className="size-4 text-muted-foreground" />
-                                {index}
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
+                          ? renderDisabledSubItem(indexesError)
+                          : tableIndexes.length === 0
+                            ? renderDisabledSubItem("No indexes found")
+                            : tableIndexes.map((index) => (
+                                <SidebarMenuSubItem key={index}>
+                                  <SidebarMenuSubButton className="pointer-events-none">
+                                    <ListTree className="size-4 text-muted-foreground" />
+                                    {index}
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
                     </SidebarMenuSub>
                   ) : null}
                 </SidebarMenuSubItem>
               </SidebarMenuSub>
             ) : null}
           </SidebarMenuSubItem>
-        )
-      })
+        );
+      });
     },
     [
       connections,
@@ -711,39 +788,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       renderDisabledSubItem,
       selectedTable,
       setSelectedTable,
-    ]
-  )
+    ],
+  );
 
   const toggleConnection = React.useCallback(
     async (id: string) => {
-      setSelectedConnection(id)
+      setSelectedConnection(id);
       setExpandedConnections((prev) => ({
         ...prev,
         [id]: !prev[id],
-      }))
+      }));
 
-      const connection = connections.find((item) => item.config.id === id)
+      const connection = connections.find((item) => item.config.id === id);
       if (!connection || connection.schemas.length > 0) {
-        return
+        return;
       }
 
       if (!getSchemas) {
-        setConnectionError(id, "Schemas only available in desktop app.")
-        return
+        setConnectionError(id, "Schemas only available in desktop app.");
+        return;
       }
 
-      setConnectionLoading(id, true)
-      setConnectionError(id, undefined)
+      setConnectionLoading(id, true);
+      setConnectionError(id, undefined);
 
-      const result = await getSchemas(connection.config)
+      const result = await getSchemas(connection.config);
 
       if (result.ok && result.schemas) {
-        setConnectionSchemas(id, result.schemas)
+        setConnectionSchemas(id, result.schemas);
       } else {
-        setConnectionError(id, result.message || "Failed to load schemas.")
+        setConnectionError(id, result.message || "Failed to load schemas.");
       }
 
-      setConnectionLoading(id, false)
+      setConnectionLoading(id, false);
     },
     [
       connections,
@@ -752,101 +829,100 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setConnectionError,
       setConnectionSchemas,
       setSelectedConnection,
-    ]
-  )
+    ],
+  );
 
   const toggleSchema = React.useCallback(
     async (connectionId: string, schemaName: string) => {
-      const key = `${connectionId}:${schemaName}`
-      setSelectedSchema(connectionId, schemaName)
+      const key = `${connectionId}:${schemaName}`;
+      const isExpanded = expandedSchemas[key];
+      if (!isExpanded) {
+        setSelectedSchema(connectionId, schemaName);
+      }
       setExpandedSchemas((prev) => ({
         ...prev,
         [key]: !prev[key],
-      }))
+      }));
 
       const connection = connections.find(
-        (item) => item.config.id === connectionId
-      )
+        (item) => item.config.id === connectionId,
+      );
       const schema = connection?.schemas.find(
-        (item) => item.name === schemaName
-      )
+        (item) => item.name === schemaName,
+      );
 
       if (!connection || !schema || schema.tables.length > 0) {
-        return
+        return;
       }
 
       if (!getTables) {
         setSchemaError(
           connectionId,
           schemaName,
-          "Tables only available in desktop app."
-        )
-        return
+          "Tables only available in desktop app.",
+        );
+        return;
       }
 
-      setSchemaLoading(connectionId, schemaName, true)
-      setSchemaError(connectionId, schemaName, undefined)
+      setSchemaLoading(connectionId, schemaName, true);
+      setSchemaError(connectionId, schemaName, undefined);
 
-      const result = await getTables(
-        connection.config,
-        schemaName
-      )
+      const result = await getTables(connection.config, schemaName);
 
       if (result.ok && result.tables) {
-        setSchemaTables(connectionId, schemaName, result.tables)
+        setSchemaTables(connectionId, schemaName, result.tables);
       } else {
         setSchemaError(
           connectionId,
           schemaName,
-          result.message || "Failed to load tables."
-        )
+          result.message || "Failed to load tables.",
+        );
       }
 
-      setSchemaLoading(connectionId, schemaName, false)
+      setSchemaLoading(connectionId, schemaName, false);
     },
     [
       connections,
+      expandedSchemas,
       getTables,
       setSchemaLoading,
       setSchemaError,
       setSchemaTables,
       setSelectedSchema,
-    ]
-  )
+    ],
+  );
 
   const renderSchemas = React.useCallback(
-    (
-      connection: {
-        config: { id: string, name: string }
-        schemas: {
-          name: string
-          tables: string[]
-          loading: boolean
-          error?: string
-          tableColumns: Record<
-            string,
-            { name: string; isPrimary: boolean; isForeign: boolean }[]
-          >
-          tableColumnsLoading: Record<string, boolean>
-          tableColumnsError: Record<string, string | undefined>
-          tableIndexes: Record<string, string[]>
-          tableIndexesLoading: Record<string, boolean>
-          tableIndexesError: Record<string, string | undefined>
-        }[]
-        loading: boolean
-        error?: string
-      }
-    ) => {
+    (connection: {
+      config: { id: string; name: string };
+      schemas: {
+        name: string;
+        tables: string[];
+        loading: boolean;
+        error?: string;
+        tableColumns: Record<
+          string,
+          { name: string; isPrimary: boolean; isForeign: boolean }[]
+        >;
+        tableColumnsLoading: Record<string, boolean>;
+        tableColumnsError: Record<string, string | undefined>;
+        tableIndexes: Record<string, string[]>;
+        tableIndexesLoading: Record<string, boolean>;
+        tableIndexesError: Record<string, string | undefined>;
+      }[];
+      loading: boolean;
+      error?: string;
+    }) => {
       if (connection.loading) {
-        return renderDisabledSubItem("Loading schemas...")
+        return renderDisabledSubItem("Loading schemas...");
       }
 
       if (connection.error) {
-        return renderDisabledSubItem(connection.error)
+        return renderDisabledSubItem(connection.error);
       }
 
       if (connection.schemas.length === 0) {
-        return renderDisabledSubItem("No schemas found")
+        return renderDisabledSubItem("No schemas found");
       }
 
       return connection.schemas.map((schema) => (
@@ -885,13 +961,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {renderTables(connection.config.id, schema) ?? null}
           </SidebarMenuSub>
         </SidebarMenuSubItem>
-      ))
+      ));
     },
-    [handleNewQuery, renderDisabledSubItem, renderTables, toggleSchema]
-  )
+    [handleNewQuery, renderDisabledSubItem, renderTables, toggleSchema],
+  );
 
   return (
-    <Sidebar {...props}>
+    <Sidebar collapsible="offcanvas" side="left" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -935,20 +1011,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           <Kbd className="ml-auto text-xs">⌘ + N</Kbd>
                         </ContextMenuItem>
                         <ContextMenuItem
-                          onSelect={() => handleRefreshConnection(connection.config.id)}
+                          onSelect={() =>
+                            handleRefreshConnection(connection.config.id)
+                          }
                         >
                           <RefreshCw className="mr-2 size-4" />
                           Refresh
-                          <Kbd className="ml-auto text-xs">⌘ + F5</Kbd>
+                          <Kbd className="ml-auto text-xs">⌘ + ⇧ + R</Kbd>
                         </ContextMenuItem>
                         <ContextMenuItem
-                          onSelect={() => handleEditConnection(connection.config.id)}
+                          onSelect={() =>
+                            handleEditConnection(connection.config.id)
+                          }
                         >
                           <Edit className="mr-2 size-4" />
                           Edit connection
                         </ContextMenuItem>
                         <ContextMenuItem
-                          onSelect={() => handleDeleteConnection(connection.config.id)}
+                          onSelect={() =>
+                            handleDeleteConnection(connection.config.id)
+                          }
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="mr-2 size-4" />
@@ -961,17 +1043,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       size="icon"
                       className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteConnection(connection.config.id)
+                        e.stopPropagation();
+                        handleDeleteConnection(connection.config.id);
                       }}
                     >
                       <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
                   {expandedConnections[connection.config.id] ? (
-                    <SidebarMenuSub>
-                      {renderSchemas(connection)}
-                    </SidebarMenuSub>
+                    <SidebarMenuSub>{renderSchemas(connection)}</SidebarMenuSub>
                   ) : null}
                 </SidebarMenuItem>
               ))
@@ -1004,8 +1084,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarRail />
-      
-      <Sheet open={!!editingConnection} onOpenChange={(open) => !open && setEditingConnection(null)}>
+
+      <Sheet
+        open={!!editingConnection}
+        onOpenChange={(open) => !open && setEditingConnection(null)}
+      >
         <SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl">
           <SheetHeader>
             <SheetTitle>Edit Connection</SheetTitle>
@@ -1024,5 +1107,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SheetContent>
       </Sheet>
     </Sidebar>
-  )
+  );
 }

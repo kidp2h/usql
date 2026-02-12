@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -58,9 +58,10 @@ function startStaticServer() {
       .replace(/^\.\.[\\/]/, "");
     const filePath = path.join(outDir, safePath);
 
-    const finalPath = fs.existsSync(filePath) && fs.statSync(filePath).isFile()
-      ? filePath
-      : path.join(outDir, "index.html");
+    const finalPath =
+      fs.existsSync(filePath) && fs.statSync(filePath).isFile()
+        ? filePath
+        : path.join(outDir, "index.html");
 
     fs.readFile(finalPath, (err, data) => {
       if (err) {
@@ -183,6 +184,46 @@ ipcMain.handle("execute-query", async (_event, payload) => {
   return handler(payload, payload.sql);
 });
 
+ipcMain.handle("save-query", async (_event, payload) => {
+  if (!payload || typeof payload.content !== "string") {
+    return { ok: false, message: "Missing query content" };
+  }
+
+  if (payload.filePath && !payload.forceDialog) {
+    try {
+      await fs.promises.writeFile(payload.filePath, payload.content, "utf8");
+      return { ok: true, filePath: payload.filePath };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Save failed",
+      };
+    }
+  }
+
+  const result = await dialog.showSaveDialog({
+    title: "Save SQL",
+    defaultPath: payload.suggestedName || payload.filePath || "query.sql",
+    filters: [
+      { name: "SQL", extensions: ["sql"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { ok: true, canceled: true };
+  }
+
+  try {
+    await fs.promises.writeFile(result.filePath, payload.content, "utf8");
+    return { ok: true, filePath: result.filePath };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Save failed",
+    };
+  }
+});
 
 // App lifecycle
 app.whenReady().then(async () => {
@@ -205,10 +246,10 @@ app.on("window-all-closed", () => {
 });
 
 // Error handling
-process.on('uncaughtException', (error) => {
-  console.error('[Main] Uncaught exception:', error);
+process.on("uncaughtException", (error) => {
+  console.error("[Main] Uncaught exception:", error);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Main] Unhandled rejection:', reason);
+process.on("unhandledRejection", (reason, _promise) => {
+  console.error("[Main] Unhandled rejection:", reason);
 });

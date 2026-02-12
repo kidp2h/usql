@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": true,
+    "ignoreUnknown": false,
     "includes": [
       "**",
       "!node_modules",
@@ -25,6 +25,13 @@
   },
   "linter": {
     "enabled": true,
+    "includes": [
+      "**", 
+      "!test/**",
+      "!components/ui/*.ts",
+      "!components/*.tsx",
+      "!components/ui/*.tsx"
+    ],
     "rules": {
       "recommended": true,
       "suspicious": {

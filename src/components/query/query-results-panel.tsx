@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -15,7 +13,9 @@ import {
   Pin,
   PinOff,
 } from "lucide-react";
-
+import * as React from "react";
+import { createPortal } from "react-dom";
+import type { QueryResult } from "@/components/query/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/context-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { QueryResult } from "@/components/query/types";
+import { DrawerViewJson } from "../drawer-view-json";
+import { toast } from "sonner";
 
 type QueryResultsPanelProps = {
   isExecuting: boolean;
@@ -51,6 +52,7 @@ type IndexedRow = {
 };
 
 const pageSize = 50;
+const maxCellChars = 50;
 
 export function QueryResultsPanel({
   isExecuting,
@@ -59,9 +61,12 @@ export function QueryResultsPanel({
   executionTime,
   copyText,
 }: QueryResultsPanelProps) {
+
   const [columnWidths, setColumnWidths] = React.useState<
     Record<string, number>
   >({});
+  const [openDrawerJson, setOpenDrawerJson] = React.useState(false);
+  const [jsonContent, setJsonContent] = React.useState("");
   const resizeRef = React.useRef<{
     column: string;
     startX: number;
@@ -74,30 +79,31 @@ export function QueryResultsPanel({
     Record<string, Set<string>>
   >({});
   const [hiddenColumns, setHiddenColumns] = React.useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [pinnedColumns, setPinnedColumns] = React.useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [openHiddenColumns, setOpenHiddenColumns] = React.useState(false);
   const hiddenColumnsRef = React.useRef<HTMLDivElement | null>(null);
-  const [selectionStart, setSelectionStart] = React.useState<
-    { row: number; col: number } | null
-  >(null);
-  const [selectionEnd, setSelectionEnd] = React.useState<
-    { row: number; col: number } | null
-  >(null);
+  const [selectionStart, setSelectionStart] = React.useState<{
+    row: number;
+    col: number;
+  } | null>(null);
+  const [selectionEnd, setSelectionEnd] = React.useState<{
+    row: number;
+    col: number;
+  } | null>(null);
   const [isSelecting, setIsSelecting] = React.useState(false);
   const [openFilterColumn, setOpenFilterColumn] = React.useState<string | null>(
-    null
+    null,
   );
   const filterPopoverRef = React.useRef<HTMLDivElement | null>(null);
-  const filterButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>(
-    {}
-  );
-  const [filterPopoverStyle, setFilterPopoverStyle] = React.useState<
-    React.CSSProperties | null
-  >(null);
+  const filterButtonRefs = React.useRef<
+    Record<string, HTMLButtonElement | null>
+  >({});
+  const [filterPopoverStyle, setFilterPopoverStyle] =
+    React.useState<React.CSSProperties | null>(null);
 
   React.useEffect(() => {
     if (queryResult) {
@@ -190,7 +196,7 @@ export function QueryResultsPanel({
       const padding = 12;
       const left = Math.min(
         Math.max(padding, rect.right - width),
-        window.innerWidth - width - padding
+        window.innerWidth - width - padding,
       );
       const top = Math.min(rect.bottom + 8, window.innerHeight - padding);
 
@@ -225,7 +231,15 @@ export function QueryResultsPanel({
     }
     return String(value);
   }, []);
-
+  const getTruncatedCellText = React.useCallback((text: string) => {
+    if (text.length <= maxCellChars) {
+      return { text, extra: 0 };
+    }
+    return {
+      text: text.slice(0, maxCellChars),
+      extra: text.length - maxCellChars,
+    };
+  }, []);
   const columnValueOptions = React.useMemo(() => {
     if (!queryResult) {
       return {} as Record<string, string[]>;
@@ -313,7 +327,7 @@ export function QueryResultsPanel({
 
       return { text: strValue, type: "string" };
     },
-    []
+    [],
   );
 
   const getCellClassName = React.useCallback((type: string) => {
@@ -366,11 +380,11 @@ export function QueryResultsPanel({
 
   const visibleRowKeys = React.useMemo(
     () => filteredRows.map((entry) => String(entry.index)),
-    [filteredRows]
+    [filteredRows],
   );
   const visibleColumns = React.useMemo(() => {
     const filtered = (queryResult?.columns ?? []).filter(
-      (column) => !hiddenColumns.has(column)
+      (column) => !hiddenColumns.has(column),
     );
     return filtered.sort((a, b) => {
       const aPinned = pinnedColumns.has(a);
@@ -462,7 +476,7 @@ export function QueryResultsPanel({
             const stringValue = String(value).replace(/"/g, '""');
             return `"${stringValue}"`;
           })
-          .join(",")
+          .join(","),
       ),
     ].join("\n");
 
@@ -497,32 +511,17 @@ export function QueryResultsPanel({
     document.body.removeChild(link);
   }, [getExportRows, queryResult]);
 
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) {
-        return;
-      }
 
-      const key = event.key.toLowerCase();
-      if (key === "c") {
-        event.preventDefault();
-        event.stopPropagation();
-        void exportToCSV();
-      } else if (key === "j") {
-        event.preventDefault();
-        event.stopPropagation();
-        void exportToJSON();
-      } else if (key === "h") {
-        event.preventDefault();
-        event.stopPropagation();
-        showAllColumns();
-      }
-    };
 
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () =>
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, [exportToCSV, exportToJSON, showAllColumns]);
+  const viewJson = (j) => {
+    try {
+      const json = JSON.stringify(JSON.parse(j), null, 2);
+      setJsonContent(json);
+      setOpenDrawerJson(true);
+    } catch {
+      toast.error("Selected cell is not valid JSON");
+    }
+  }
 
   const startResize = React.useCallback(
     (event: React.MouseEvent<HTMLElement>, column: string) => {
@@ -532,7 +531,7 @@ export function QueryResultsPanel({
       const headerCell = event.currentTarget.parentElement;
       const startWidth = headerCell
         ? Math.round(headerCell.getBoundingClientRect().width)
-        : columnWidths[column] ?? 220;
+        : (columnWidths[column] ?? 150);
 
       resizeRef.current = {
         column,
@@ -564,7 +563,7 @@ export function QueryResultsPanel({
       globalThis.addEventListener("mousemove", handleMouseMove);
       globalThis.addEventListener("mouseup", handleMouseUp);
     },
-    [columnWidths]
+    [columnWidths],
   );
 
   const sortedRows = React.useMemo(() => {
@@ -617,11 +616,11 @@ export function QueryResultsPanel({
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
   const pageStart = totalRows === 0 ? 0 : safePageIndex * pageSize + 1;
   const pageEnd =
-    totalRows === 0
-      ? 0
-      : Math.min(totalRows, (safePageIndex + 1) * pageSize);
+    totalRows === 0 ? 0 : Math.min(totalRows, (safePageIndex + 1) * pageSize);
   const pagedRows = sortedRows.slice(safePageIndex * pageSize, pageEnd);
-  const canPaginate = Boolean(queryResult && !queryResult.error && totalRows > 0);
+  const canPaginate = Boolean(
+    queryResult && !queryResult.error && totalRows > 0,
+  );
 
   const selectionRange = React.useMemo(() => {
     if (!selectionStart || !selectionEnd) {
@@ -650,7 +649,11 @@ export function QueryResultsPanel({
       if (!rowEntry) {
         continue;
       }
-      for (let c = selectionRange.colStart; c <= selectionRange.colEnd; c += 1) {
+      for (
+        let c = selectionRange.colStart;
+        c <= selectionRange.colEnd;
+        c += 1
+      ) {
         const column = visibleColumns[c];
         if (!column) {
           continue;
@@ -685,7 +688,7 @@ export function QueryResultsPanel({
       }
       return info.text;
     },
-    [getCellValueInfo]
+    [getCellValueInfo],
   );
 
   const getSelectedMatrix = React.useCallback(() => {
@@ -700,7 +703,11 @@ export function QueryResultsPanel({
         continue;
       }
       const rowValues: string[] = [];
-      for (let c = selectionRange.colStart; c <= selectionRange.colEnd; c += 1) {
+      for (
+        let c = selectionRange.colStart;
+        c <= selectionRange.colEnd;
+        c += 1
+      ) {
         const column = visibleColumns[c];
         if (!column) {
           continue;
@@ -727,7 +734,11 @@ export function QueryResultsPanel({
         continue;
       }
       const rowValues: Array<{ value: string; type: string }> = [];
-      for (let c = selectionRange.colStart; c <= selectionRange.colEnd; c += 1) {
+      for (
+        let c = selectionRange.colStart;
+        c <= selectionRange.colEnd;
+        c += 1
+      ) {
         const column = visibleColumns[c];
         if (!column) {
           continue;
@@ -745,12 +756,22 @@ export function QueryResultsPanel({
     }
 
     return rows;
-  }, [getCellCopyValue, getCellValueInfo, pagedRows, selectionRange, visibleColumns]);
+  }, [
+    getCellCopyValue,
+    getCellValueInfo,
+    pagedRows,
+    selectionRange,
+    visibleColumns,
+  ]);
 
   const copySelection = React.useCallback(
     (
       separator: string,
-      options?: { withQuotes?: boolean; flattenRows?: boolean; smartQuote?: boolean }
+      options?: {
+        withQuotes?: boolean;
+        flattenRows?: boolean;
+        smartQuote?: boolean;
+      },
     ) => {
       const rows = getSelectedMatrix();
       if (rows.length === 0) {
@@ -773,38 +794,36 @@ export function QueryResultsPanel({
         const rowsWithTypes = getSelectedMatrixWithTypes();
         const content = flattenRows
           ? rowsWithTypes
-              .flat()
-              .map((item) => {
-                if (item.type === "string") {
-                  return `"${item.value.replace(/"/g, '""')}"`;
-                }
-                return item.value;
-              })
-              .join(separator)
+            .flat()
+            .map((item) => {
+              if (item.type === "string") {
+                return `"${item.value.replace(/"/g, '""')}"`;
+              }
+              return item.value;
+            })
+            .join(separator)
           : rowsWithTypes
-              .map((row) =>
-                row
-                  .map((item) => {
-                    if (item.type === "string") {
-                      return `'${item.value.replace(/'/g, "''")}'`;
-                    }
-                    return item.value;
-                  })
-                  .join(separator)
-              )
-              .join("\n");
+            .map((row) =>
+              row
+                .map((item) => {
+                  if (item.type === "string") {
+                    return `'${item.value.replace(/'/g, "''")}'`;
+                  }
+                  return item.value;
+                })
+                .join(separator),
+            )
+            .join("\n");
         void copyText(content);
         return;
       }
 
       const content = flattenRows
         ? rows.flat().map(normalizeValue).join(separator)
-        : rows
-            .map((row) => row.map(normalizeValue).join(separator))
-            .join("\n");
+        : rows.map((row) => row.map(normalizeValue).join(separator)).join("\n");
       void copyText(content);
     },
-    [copyText, getSelectedMatrix, getSelectedMatrixWithTypes]
+    [copyText, getSelectedMatrix, getSelectedMatrixWithTypes],
   );
 
   React.useEffect(() => {
@@ -838,8 +857,7 @@ export function QueryResultsPanel({
   }, [copySelection, hasSelection]);
 
   React.useEffect(() => {
-    const shouldResetSelection =
-      pageIndex >= 0 && visibleColumns.length >= 0;
+    const shouldResetSelection = pageIndex >= 0 && visibleColumns.length >= 0;
     if (!shouldResetSelection) {
       return;
     }
@@ -881,7 +899,7 @@ export function QueryResultsPanel({
       });
       setPageIndex(0);
     },
-    []
+    [],
   );
 
   const clearColumnFilter = React.useCallback((column: string) => {
@@ -894,7 +912,11 @@ export function QueryResultsPanel({
   }, []);
 
   const handleCellMouseDown = React.useCallback(
-    (row: number, col: number, event: React.MouseEvent<HTMLTableCellElement>) => {
+    (
+      row: number,
+      col: number,
+      event: React.MouseEvent<HTMLTableCellElement>,
+    ) => {
       if (event.button !== 0) {
         return;
       }
@@ -903,7 +925,7 @@ export function QueryResultsPanel({
       setSelectionEnd({ row, col });
       setIsSelecting(true);
     },
-    []
+    [],
   );
 
   const handleCellMouseEnter = React.useCallback(
@@ -913,9 +935,44 @@ export function QueryResultsPanel({
       }
       setSelectionEnd({ row, col });
     },
-    [isSelecting]
+    [isSelecting],
   );
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
 
+      // Ctrl + Alt + J
+      if (event.ctrlKey && event.altKey && key === "j") {
+        event.preventDefault()
+        event.stopPropagation()
+        void viewJson(getSelectedMatrix()[0][0])
+        return
+      }
+
+      // Ctrl/Cmd + Shift + ...
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) {
+        return
+      }
+
+      if (key === "c") {
+        event.preventDefault()
+        event.stopPropagation()
+        void exportToCSV()
+      } else if (key === "j") {
+        event.preventDefault()
+        event.stopPropagation()
+        void exportToJSON()
+      } else if (key === "h") {
+        event.preventDefault()
+        event.stopPropagation()
+        showAllColumns()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true })
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true })
+  }, [exportToCSV, exportToJSON, showAllColumns, getSelectedMatrix])
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-md border">
       <div className="border-b px-3 py-2 text-xs text-muted-foreground">
@@ -961,7 +1018,8 @@ export function QueryResultsPanel({
               >
                 <span className="inline-flex items-center gap-1">
                   <span>
-                    Export JSON {checkedRows.size > 0 && `(${checkedRows.size})`}
+                    Export JSON{" "}
+                    {checkedRows.size > 0 && `(${checkedRows.size})`}
                   </span>
                   <Kbd className="opacity-70">⌘ ⇧ J</Kbd>
                 </span>
@@ -976,7 +1034,8 @@ export function QueryResultsPanel({
                   <span className="inline-flex items-center gap-1">
                     <EyeOff className="size-3.5" />
                     <span>
-                      Hidden {hiddenColumns.size > 0 && `(${hiddenColumns.size})`}
+                      Hidden{" "}
+                      {hiddenColumns.size > 0 && `(${hiddenColumns.size})`}
                     </span>
                     <Kbd className="opacity-70">⌘ ⇧ H</Kbd>
                   </span>
@@ -1028,7 +1087,7 @@ export function QueryResultsPanel({
               {Array.from({ length: 8 }, (_, index) => `skeleton-${index}`).map(
                 (key) => (
                   <Skeleton key={key} className="h-6 w-full" />
-                )
+                ),
               )}
             </div>
           </div>
@@ -1083,15 +1142,15 @@ export function QueryResultsPanel({
                               (isPinned ? "sticky bg-card shadow-sm z-10" : "")
                             }
                             style={{
-                              width: columnWidths[column] ?? 220,
+                              width: columnWidths[column] ?? 150,
                               ...(isPinned && {
                                 left: Array.from(visibleColumns)
                                   .slice(0, visibleColumns.indexOf(column))
                                   .filter((col) => pinnedColumns.has(col))
                                   .reduce(
                                     (sum, col) =>
-                                      sum + (columnWidths[col] ?? 220),
-                                    0
+                                      sum + (columnWidths[col] ?? 150),
+                                    0,
                                   ),
                               }),
                             }}
@@ -1128,7 +1187,7 @@ export function QueryResultsPanel({
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setOpenFilterColumn((current) =>
-                                        current === column ? null : column
+                                        current === column ? null : column,
                                       );
                                     }}
                                     className={
@@ -1142,72 +1201,72 @@ export function QueryResultsPanel({
                                     <Filter className="size-3.5" />
                                   </button>
                                   {openFilterColumn === column &&
-                                  filterPopoverStyle
+                                    filterPopoverStyle
                                     ? createPortal(
-                                        <div
-                                          ref={filterPopoverRef}
-                                          style={filterPopoverStyle}
-                                          className="rounded-md border bg-card p-2 shadow-lg"
-                                        >
-                                          <div className="max-h-64 overflow-auto">
-                                            {(columnValueOptions[column] ?? [])
-                                              .length > 0 ? (
-                                              columnValueOptions[column].map(
-                                                (value) => {
-                                                  const isChecked =
-                                                    columnFilters[column]?.has(
-                                                      value
-                                                    ) ?? false;
-                                                  const count =
-                                                    columnValueCounts[column]?.[
-                                                      value
-                                                    ] ?? 0;
-                                                  return (
-                                                    <div
-                                                      key={value}
-                                                      className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
-                                                    >
-                                                      <Checkbox
-                                                        checked={isChecked}
-                                                        onCheckedChange={() =>
-                                                          toggleFilterValue(
-                                                            column,
-                                                            value
-                                                          )
-                                                        }
-                                                      />
-                                                      <span className="truncate">
-                                                        {value}
-                                                      </span>
-                                                      <span className="ml-auto text-xs text-muted-foreground">
-                                                        {count}
-                                                      </span>
-                                                    </div>
-                                                  );
-                                                }
-                                              )
-                                            ) : (
-                                              <div className="px-2 py-1 text-xs text-muted-foreground">
-                                                No values
-                                              </div>
-                                            )}
-                                          </div>
-                                          {columnFilters[column]?.size ? (
-                                            <div className="mt-2 flex items-center justify-end">
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  clearColumnFilter(column)
-                                                }
-                                                className="text-xs text-muted-foreground hover:text-foreground"
-                                              >
-                                                Clear filter
-                                              </button>
+                                      <div
+                                        ref={filterPopoverRef}
+                                        style={filterPopoverStyle}
+                                        className="rounded-md border bg-card p-2 shadow-lg"
+                                      >
+                                        <div className="max-h-64 overflow-auto">
+                                          {(columnValueOptions[column] ?? [])
+                                            .length > 0 ? (
+                                            columnValueOptions[column].map(
+                                              (value) => {
+                                                const isChecked =
+                                                  columnFilters[column]?.has(
+                                                    value,
+                                                  ) ?? false;
+                                                const count =
+                                                  columnValueCounts[column]?.[
+                                                  value
+                                                  ] ?? 0;
+                                                return (
+                                                  <div
+                                                    key={value}
+                                                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
+                                                  >
+                                                    <Checkbox
+                                                      checked={isChecked}
+                                                      onCheckedChange={() =>
+                                                        toggleFilterValue(
+                                                          column,
+                                                          value,
+                                                        )
+                                                      }
+                                                    />
+                                                    <span className="truncate">
+                                                      {value}
+                                                    </span>
+                                                    <span className="ml-auto text-xs text-muted-foreground">
+                                                      {count}
+                                                    </span>
+                                                  </div>
+                                                );
+                                              },
+                                            )
+                                          ) : (
+                                            <div className="px-2 py-1 text-xs text-muted-foreground">
+                                              No values
                                             </div>
-                                          ) : null}
-                                        </div>,
-                                        document.body
-                                      )
+                                          )}
+                                        </div>
+                                        {columnFilters[column]?.size ? (
+                                          <div className="mt-2 flex items-center justify-end">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                clearColumnFilter(column)
+                                              }
+                                              className="text-xs text-muted-foreground hover:text-foreground"
+                                            >
+                                              Clear filter
+                                            </button>
+                                          </div>
+                                        ) : null}
+                                      </div>,
+                                      document.body,
+                                    )
                                     : null}
                                 </div>
                               </div>
@@ -1230,7 +1289,9 @@ export function QueryResultsPanel({
                             </div>
                             <button
                               type="button"
-                              onMouseDown={(event) => startResize(event, column)}
+                              onMouseDown={(event) =>
+                                startResize(event, column)
+                              }
                               className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
                               aria-label={`Resize ${column}`}
                             />
@@ -1244,7 +1305,7 @@ export function QueryResultsPanel({
                       const rowKey = String(entry.index);
                       return (
                         <tr key={rowKey}>
-                          <td className="border-b border-l px-3 py-2 align-top first:border-l-0 w-10">
+                          <td className="border-b border-l px-3 py-2 align-top first:border-l-0 w-5">
                             <Checkbox
                               checked={checkedRows.has(rowKey)}
                               onCheckedChange={() => toggleRowCheckbox(rowKey)}
@@ -1268,36 +1329,36 @@ export function QueryResultsPanel({
                                     : "") +
                                   " " +
                                   (selectionRange &&
-                                  rowIndex >= selectionRange.rowStart &&
-                                  rowIndex <= selectionRange.rowEnd &&
-                                  colIndex >= selectionRange.colStart &&
-                                  colIndex <= selectionRange.colEnd
+                                    rowIndex >= selectionRange.rowStart &&
+                                    rowIndex <= selectionRange.rowEnd &&
+                                    colIndex >= selectionRange.colStart &&
+                                    colIndex <= selectionRange.colEnd
                                     ? "bg-primary/10"
                                     : "")
                                 }
                                 style={{
-                                  width: columnWidths[column] ?? 220,
+                                  width: columnWidths[column] ?? 150,
                                   ...(isPinned && {
                                     left: Array.from(visibleColumns)
                                       .slice(0, visibleColumns.indexOf(column))
                                       .filter((col) => pinnedColumns.has(col))
                                       .reduce(
                                         (sum, col) =>
-                                          sum + (columnWidths[col] ?? 220),
-                                        0
+                                          sum + (columnWidths[col] ?? 150),
+                                        0,
                                       ),
                                   }),
                                 }}
                               >
                                 {(() => {
                                   const cellInfo = getCellValueInfo(
-                                    entry.row[column]
+                                    entry.row[column],
                                   );
                                   if (cellInfo.type === "null") {
                                     return (
-                                      <span className="font-semibold italic text-muted-foreground">
+                                      <div className="font-semibold italic text-muted-foreground">
                                         NULL
-                                      </span>
+                                      </div>
                                     );
                                   }
                                   if (
@@ -1305,15 +1366,27 @@ export function QueryResultsPanel({
                                     cellInfo.text === ""
                                   ) {
                                     return (
-                                      <span className="font-semibold italic text-muted-foreground">
+                                      <div className="font-semibold italic text-muted-foreground">
                                         ""
-                                      </span>
+                                      </div>
                                     );
                                   }
+                                  const { text: displayText, extra } = getTruncatedCellText(cellInfo.text);
                                   return (
-                                    <span className={getCellClassName(cellInfo.type)}>
-                                      {cellInfo.text}
-                                    </span>
+                                    <div className="flex items-start gap-2">
+                                      <span
+                                        className={getCellClassName(
+                                          cellInfo.type,
+                                        )}
+                                      >
+                                        {displayText}
+                                      </span>
+                                      {extra > 0 ? (
+                                        <span className="mt-0.5 inline-flex items-center rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+                                          +{extra}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   );
                                 })()}
                               </td>
@@ -1341,7 +1414,16 @@ export function QueryResultsPanel({
                 onSelect={() => copySelection("\t")}
               >
                 Copy
-                <Kbd className="ml-auto text-xs">⌘ C</Kbd>
+                <Kbd className="ml-auto text-xs">⌘ + C</Kbd>
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={!hasSelection}
+                onSelect={() => {
+                  void viewJson(getSelectedMatrix()[0][0])
+                }}
+              >
+                View as JSON
+                <Kbd className="ml-auto text-xs">⌘ + ⌥ + J</Kbd>
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
@@ -1352,7 +1434,9 @@ export function QueryResultsPanel({
               variant="ghost"
               size="icon"
               disabled={!canPaginate || safePageIndex === 0}
-              onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+              onClick={() =>
+                setPageIndex((current) => Math.max(0, current - 1))
+              }
               aria-label="Previous page"
             >
               <ChevronLeft className="size-4" />
@@ -1367,9 +1451,7 @@ export function QueryResultsPanel({
               size="icon"
               disabled={!canPaginate || safePageIndex >= totalPages - 1}
               onClick={() =>
-                setPageIndex((current) =>
-                  Math.min(totalPages - 1, current + 1)
-                )
+                setPageIndex((current) => Math.min(totalPages - 1, current + 1))
               }
               aria-label="Next page"
             >
@@ -1377,6 +1459,7 @@ export function QueryResultsPanel({
             </Button>
           </div>
         </div>
+        <DrawerViewJson open={openDrawerJson} onOpenChange={setOpenDrawerJson} json={jsonContent} />
       </div>
     </div>
   );

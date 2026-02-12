@@ -1,229 +1,242 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-import type { DbType } from "@/lib/db-types"
+import type { DbType } from "@/lib/db-types";
 
 type SidebarSubItem = {
-  title: string
-  url: string
-  isActive?: boolean
-}
+  title: string;
+  url: string;
+  isActive?: boolean;
+};
 
 type SidebarGroup = {
-  title: string
-  url: string
-  items?: SidebarSubItem[]
-}
+  title: string;
+  url: string;
+  items?: SidebarSubItem[];
+};
 
 type ConnectionConfig = {
-  id: string
-  name: string
-  dbType: DbType
-  host: string
-  port: string
-  database: string
-  username: string
-  password: string
-  ssl: boolean
-  readOnly: boolean
-}
+  id: string;
+  name: string;
+  dbType: DbType;
+  host: string;
+  port: string;
+  database: string;
+  username: string;
+  password: string;
+  ssl: boolean;
+  readOnly: boolean;
+};
 
 type ConnectionSchema = {
-  name: string
-  tables: string[]
-  loading: boolean
-  error?: string
-  tableColumns: Record<string, TableColumn[]>
-  tableColumnsLoading: Record<string, boolean>
-  tableColumnsError: Record<string, string | undefined>
-  tableIndexes: Record<string, string[]>
-  tableIndexesLoading: Record<string, boolean>
-  tableIndexesError: Record<string, string | undefined>
-}
+  name: string;
+  tables: string[];
+  loading: boolean;
+  error?: string;
+  tableColumns: Record<string, TableColumn[]>;
+  tableColumnsLoading: Record<string, boolean>;
+  tableColumnsError: Record<string, string | undefined>;
+  tableIndexes: Record<string, string[]>;
+  tableIndexesLoading: Record<string, boolean>;
+  tableIndexesError: Record<string, string | undefined>;
+};
 
 type TableColumn = {
-  name: string
-  isPrimary: boolean
-  isForeign: boolean
-}
+  name: string;
+  isPrimary: boolean;
+  isForeign: boolean;
+};
 
 type ConnectionState = {
-  config: ConnectionConfig
-  schemas: ConnectionSchema[]
-  loading: boolean
-  error?: string
-}
+  config: ConnectionConfig;
+  schemas: ConnectionSchema[];
+  loading: boolean;
+  error?: string;
+};
 
 type QueryContext = {
-  connectionId: string
-  connectionName: string
-  schema?: string
-  table?: string
-}
+  connectionId: string;
+  connectionName: string;
+  schema?: string;
+  table?: string;
+};
 
-type QueryTabIcon = "connection" | "schema" | "table" | "query"
+type QueryTabIcon = "connection" | "schema" | "table" | "query";
 
 export type QueryTab = {
-  id: string
-  title: string
-  icon: QueryTabIcon
-  context?: QueryContext
-  sql: string
-}
+  id: string;
+  title: string;
+  icon: QueryTabIcon;
+  context?: QueryContext;
+  sql: string;
+  savedSql?: string;
+  filePath?: string;
+};
 
 type SidebarState = {
-  navMain: SidebarGroup[]
-  connections: ConnectionState[]
-  selectedConnectionId?: string
-  selectedSchema?: { connectionId: string; name: string }
-  selectedTable?: { connectionId: string; schema: string; name: string }
-  queryTabs: QueryTab[]
-  activeQueryTabId?: string
-  setNavMain: (navMain: SidebarGroup[]) => void
-  setActiveItem: (groupTitle: string, itemTitle: string) => void
-  addConnection: (connection: Omit<ConnectionConfig, "id">) => void
-  deleteConnection: (id: string) => void
-  updateConnection: (id: string, connection: Omit<ConnectionConfig, "id">) => void
-  setSelectedConnection: (id: string) => void
-  setSelectedSchema: (connectionId: string, name: string) => void
-  setSelectedTable: (connectionId: string, schema: string, name: string) => void
-  openQuery: (context: QueryContext) => void
-  closeQuery: () => void
-  closeQueryTab: (tabId: string) => void
-  closeAllTabs: () => void
-  setActiveQueryTab: (tabId: string) => void
-  reorderQueryTabs: (fromIndex: number, toIndex: number) => void
-  setQuerySql: (sql: string) => void
-  setConnectionLoading: (id: string, loading: boolean) => void
-  setConnectionError: (id: string, error?: string) => void
-  setConnectionSchemas: (id: string, schemas: string[]) => void
-  setSchemaLoading: (id: string, schema: string, loading: boolean) => void
-  setSchemaError: (id: string, schema: string, error?: string) => void
-  setSchemaTables: (id: string, schema: string, tables: string[]) => void
+  navMain: SidebarGroup[];
+  connections: ConnectionState[];
+  selectedConnectionId?: string;
+  selectedSchema?: { connectionId: string; name: string };
+  selectedTable?: { connectionId: string; schema: string; name: string };
+  queryTabs: QueryTab[];
+  activeQueryTabId?: string;
+  setNavMain: (navMain: SidebarGroup[]) => void;
+  setActiveItem: (groupTitle: string, itemTitle: string) => void;
+  addConnection: (connection: Omit<ConnectionConfig, "id">) => void;
+  deleteConnection: (id: string) => void;
+  updateConnection: (
+    id: string,
+    connection: Omit<ConnectionConfig, "id">,
+  ) => void;
+  setSelectedConnection: (id: string) => void;
+  setSelectedSchema: (connectionId: string, name: string) => void;
+  setSelectedTable: (
+    connectionId: string,
+    schema: string,
+    name: string,
+  ) => void;
+  openQuery: (context: QueryContext) => void;
+  viewComments: (context: QueryContext) => void;
+  closeQuery: () => void;
+  closeQueryTab: (tabId: string) => void;
+  closeAllTabs: () => void;
+  setActiveQueryTab: (tabId: string) => void;
+  reorderQueryTabs: (fromIndex: number, toIndex: number) => void;
+  setQuerySql: (sql: string) => void;
+  setQuerySaved: (sql?: string) => void;
+  setQueryFilePath: (filePath?: string) => void;
+  setQueryTitle: (tabId: string, title: string) => void;
+  setConnectionLoading: (id: string, loading: boolean) => void;
+  setConnectionError: (id: string, error?: string) => void;
+  setConnectionSchemas: (id: string, schemas: string[]) => void;
+  setSchemaLoading: (id: string, schema: string, loading: boolean) => void;
+  setSchemaError: (id: string, schema: string, error?: string) => void;
+  setSchemaTables: (id: string, schema: string, tables: string[]) => void;
   setTableColumnsLoading: (
     id: string,
     schema: string,
     table: string,
-    loading: boolean
-  ) => void
+    loading: boolean,
+  ) => void;
   setTableColumnsError: (
     id: string,
     schema: string,
     table: string,
-    error?: string
-  ) => void
+    error?: string,
+  ) => void;
   setTableColumns: (
     id: string,
     schema: string,
     table: string,
-    columns: TableColumn[]
-  ) => void
+    columns: TableColumn[],
+  ) => void;
   setTableIndexesLoading: (
     id: string,
     schema: string,
     table: string,
-    loading: boolean
-  ) => void
+    loading: boolean,
+  ) => void;
   setTableIndexesError: (
     id: string,
     schema: string,
     table: string,
-    error?: string
-  ) => void
+    error?: string,
+  ) => void;
   setTableIndexes: (
     id: string,
     schema: string,
     table: string,
-    indexes: string[]
-  ) => void
-}
+    indexes: string[],
+  ) => void;
+};
 
-const initialNav: SidebarGroup[] = []
+const initialNav: SidebarGroup[] = [];
 
 const updateActiveItems = (
   navMain: SidebarGroup[],
   groupTitle: string,
-  itemTitle: string
+  itemTitle: string,
 ) => {
-  const next: SidebarGroup[] = []
+  const next: SidebarGroup[] = [];
 
   for (const group of navMain) {
     if (group.title !== groupTitle || !group.items) {
-      next.push(group)
-      continue
+      next.push(group);
+      continue;
     }
 
-    const items: SidebarSubItem[] = []
+    const items: SidebarSubItem[] = [];
     for (const item of group.items) {
       items.push({
         ...item,
         isActive: item.title === itemTitle,
-      })
+      });
     }
 
     next.push({
       ...group,
       items,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setConnectionLoadingInList = (
   connections: ConnectionState[],
   id: string,
-  loading: boolean
+  loading: boolean,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     next.push(
-      connection.config.id === id ? { ...connection, loading } : connection
-    )
+      connection.config.id === id ? { ...connection, loading } : connection,
+    );
   }
 
-  return next
-}
+  return next;
+};
 
 const setConnectionErrorInList = (
   connections: ConnectionState[],
   id: string,
-  error?: string
+  error?: string,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     next.push(
-      connection.config.id === id ? { ...connection, error } : connection
-    )
+      connection.config.id === id ? { ...connection, error } : connection,
+    );
   }
 
-  return next
-}
+  return next;
+};
 
 const setConnectionSchemasInList = (
   connections: ConnectionState[],
   id: string,
-  schemas: string[]
+  schemas: string[],
 ) => {
-  const nextSchemas: ConnectionSchema[] = []
+  const nextSchemas: ConnectionSchema[] = [];
 
   for (const name of schemas) {
     nextSchemas.push({
       name,
       tables: [],
       loading: false,
-        tableColumns: {},
-        tableColumnsLoading: {},
-        tableColumnsError: {},
-        tableIndexes: {},
-        tableIndexesLoading: {},
-        tableIndexesError: {},
-    })
+      tableColumns: {},
+      tableColumnsLoading: {},
+      tableColumnsError: {},
+      tableIndexes: {},
+      tableIndexesLoading: {},
+      tableIndexesError: {},
+    });
   }
 
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id === id) {
@@ -231,86 +244,86 @@ const setConnectionSchemasInList = (
         ...connection,
         schemas: nextSchemas,
         error: undefined,
-      })
+      });
     } else {
-      next.push(connection)
+      next.push(connection);
     }
   }
 
-  return next
-}
+  return next;
+};
 
 const setSchemaLoadingInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
-  loading: boolean
+  loading: boolean,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
-    const schemas: ConnectionSchema[] = []
+    const schemas: ConnectionSchema[] = [];
     for (const item of connection.schemas) {
-      schemas.push(item.name === schema ? { ...item, loading } : item)
+      schemas.push(item.name === schema ? { ...item, loading } : item);
     }
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setSchemaErrorInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
-  error?: string
+  error?: string,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
-    const schemas: ConnectionSchema[] = []
+    const schemas: ConnectionSchema[] = [];
     for (const item of connection.schemas) {
-      schemas.push(item.name === schema ? { ...item, error } : item)
+      schemas.push(item.name === schema ? { ...item, error } : item);
     }
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setSchemaTablesInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
-  tables: string[]
+  tables: string[],
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
-    const schemas: ConnectionSchema[] = []
+    const schemas: ConnectionSchema[] = [];
     for (const item of connection.schemas) {
       schemas.push(
         item.name === schema
@@ -320,32 +333,32 @@ const setSchemaTablesInList = (
               loading: false,
               error: undefined,
             }
-          : item
-      )
+          : item,
+      );
     }
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableColumnsLoadingInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  loading: boolean
+  loading: boolean,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -357,31 +370,31 @@ const setTableColumnsLoadingInList = (
               [table]: loading,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableColumnsErrorInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  error?: string
+  error?: string,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -393,31 +406,31 @@ const setTableColumnsErrorInList = (
               [table]: error,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableColumnsInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  columns: TableColumn[]
+  columns: TableColumn[],
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -437,31 +450,31 @@ const setTableColumnsInList = (
               [table]: undefined,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableIndexesLoadingInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  loading: boolean
+  loading: boolean,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -473,31 +486,31 @@ const setTableIndexesLoadingInList = (
               [table]: loading,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableIndexesErrorInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  error?: string
+  error?: string,
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -509,31 +522,31 @@ const setTableIndexesErrorInList = (
               [table]: error,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
 const setTableIndexesInList = (
   connections: ConnectionState[],
   id: string,
   schema: string,
   table: string,
-  indexes: string[]
+  indexes: string[],
 ) => {
-  const next: ConnectionState[] = []
+  const next: ConnectionState[] = [];
 
   for (const connection of connections) {
     if (connection.config.id !== id) {
-      next.push(connection)
-      continue
+      next.push(connection);
+      continue;
     }
 
     const schemas = connection.schemas.map((item) =>
@@ -553,46 +566,43 @@ const setTableIndexesInList = (
               [table]: undefined,
             },
           }
-        : item
-    )
+        : item,
+    );
 
     next.push({
       ...connection,
       schemas,
-    })
+    });
   }
 
-  return next
-}
+  return next;
+};
 
-const createQueryTabTitle = (
-  context: QueryContext,
-  existing: QueryTab[]
-) => {
-  const baseTitle = context.table || context.schema || context.connectionName
-  let title = baseTitle
-  let suffix = 2
+const createQueryTabTitle = (context: QueryContext, existing: QueryTab[]) => {
+  const baseTitle = context.table || context.schema || context.connectionName;
+  let title = baseTitle;
+  let suffix = 2;
 
   while (existing.some((tab) => tab.title === title)) {
-    title = `${baseTitle} (${suffix})`
-    suffix += 1
+    title = `${baseTitle} (${suffix})`;
+    suffix += 1;
   }
 
-  return title
-}
+  return title;
+};
 
 const createQueryTabIcon = (context: QueryContext): QueryTabIcon => {
   if (context.table) {
-    return "table"
+    return "table";
   }
   if (context.schema) {
-    return "schema"
+    return "schema";
   }
   if (context.connectionName) {
-    return "connection"
+    return "connection";
   }
-  return "query"
-}
+  return "query";
+};
 
 export const useSidebarStore = create<SidebarState>()(
   persist(
@@ -604,6 +614,7 @@ export const useSidebarStore = create<SidebarState>()(
       selectedTable: undefined,
       queryTabs: [],
       activeQueryTabId: undefined,
+     
       setNavMain: (navMain) => set({ navMain }),
       setActiveItem: (groupTitle, itemTitle) =>
         set((state) => ({
@@ -614,7 +625,7 @@ export const useSidebarStore = create<SidebarState>()(
           const id =
             typeof crypto !== "undefined" && "randomUUID" in crypto
               ? crypto.randomUUID()
-              : String(Date.now())
+              : String(Date.now());
 
           return {
             connections: [
@@ -628,7 +639,7 @@ export const useSidebarStore = create<SidebarState>()(
                 loading: false,
               },
             ],
-          }
+          };
         }),
       deleteConnection: (id) =>
         set((state) => ({
@@ -638,10 +649,10 @@ export const useSidebarStore = create<SidebarState>()(
               ? undefined
               : state.selectedConnectionId,
           queryTabs: state.queryTabs.filter(
-            (tab) => tab.context?.connectionId !== id
+            (tab) => tab.context?.connectionId !== id,
           ),
           activeQueryTabId: state.queryTabs.find(
-            (tab) => tab.context?.connectionId !== id
+            (tab) => tab.context?.connectionId !== id,
           )?.id,
         })),
       updateConnection: (id, connection) =>
@@ -655,7 +666,7 @@ export const useSidebarStore = create<SidebarState>()(
                     ...connection,
                   },
                 }
-              : c
+              : c,
           ),
         })),
       setSelectedConnection: (id) =>
@@ -681,72 +692,110 @@ export const useSidebarStore = create<SidebarState>()(
           const id =
             typeof crypto !== "undefined" && "randomUUID" in crypto
               ? crypto.randomUUID()
-              : String(Date.now())
-          const title = createQueryTabTitle(context, state.queryTabs)
-          const icon = createQueryTabIcon(context)
-          
+              : String(Date.now());
+          const title = createQueryTabTitle(context, state.queryTabs);
+          const icon = createQueryTabIcon(context);
+
           // Default SQL based on context
-          let defaultSql = ""
+          let defaultSql = "";
           if (context.table) {
-            const tableName = context.schema 
-              ? `${context.schema}.${context.table}` 
-              : context.table
-            defaultSql = `SELECT * FROM ${tableName} LIMIT 50`
+            defaultSql = `SELECT * FROM ${context.table} LIMIT 50`;
           }
-          
+
           const nextTab: QueryTab = {
             id,
             title,
             icon,
             context,
             sql: defaultSql,
-          }
+            savedSql: defaultSql,
+            filePath: undefined,
+          };
 
           return {
             queryTabs: [...state.queryTabs, nextTab],
             activeQueryTabId: id,
+          };
+        }),
+      viewComments: (context) =>
+                set((state) => {
+          const id =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : String(Date.now());
+          const title = createQueryTabTitle(context, state.queryTabs);
+          const icon = createQueryTabIcon(context);
+
+          // Default SQL based on context
+          let defaultSql = "";
+          if (context.table) {
+            defaultSql = `SELECT
+    column_name,
+    col_description('${context.schema}.${context.table}'::regclass, ordinal_position) AS comment
+FROM information_schema.columns
+WHERE table_schema = '${context.schema}'
+  AND table_name = '${context.table}'
+ORDER BY ordinal_position;`;
           }
+
+          const nextTab: QueryTab = {
+            id,
+            title,
+            icon,
+            context,
+            sql: defaultSql,
+            savedSql: defaultSql,
+            filePath: undefined,
+          };
+
+          return {
+            queryTabs: [...state.queryTabs, nextTab],
+            activeQueryTabId: id,
+          };
         }),
       closeQuery: () =>
         set((state) => {
           if (!state.activeQueryTabId) {
-            return { queryTabs: state.queryTabs, activeQueryTabId: undefined }
+            return { queryTabs: state.queryTabs, activeQueryTabId: undefined };
           }
 
           const index = state.queryTabs.findIndex(
-            (tab) => tab.id === state.activeQueryTabId
-          )
+            (tab) => tab.id === state.activeQueryTabId,
+          );
           if (index === -1) {
-            return { queryTabs: state.queryTabs, activeQueryTabId: undefined }
+            return { queryTabs: state.queryTabs, activeQueryTabId: undefined };
           }
 
           const nextTabs = state.queryTabs.filter(
-            (tab) => tab.id !== state.activeQueryTabId
-          )
-          const nextActive = nextTabs[index]?.id || nextTabs[index - 1]?.id
+            (tab) => tab.id !== state.activeQueryTabId,
+          );
+          const nextActive = nextTabs[index]?.id || nextTabs[index - 1]?.id;
 
           return {
             queryTabs: nextTabs,
             activeQueryTabId: nextActive,
-          }
+          };
         }),
       closeQueryTab: (tabId) =>
         set((state) => {
-          const index = state.queryTabs.findIndex((tab) => tab.id === tabId)
+          const index = state.queryTabs.findIndex((tab) => tab.id === tabId);
           if (index === -1) {
-            return { queryTabs: state.queryTabs, activeQueryTabId: state.activeQueryTabId }
+            return {
+              queryTabs: state.queryTabs,
+              activeQueryTabId: state.activeQueryTabId,
+            };
           }
 
-          const nextTabs = state.queryTabs.filter((tab) => tab.id !== tabId)
+          const nextTabs = state.queryTabs.filter((tab) => tab.id !== tabId);
           const nextActive =
             state.activeQueryTabId === tabId
               ? nextTabs[index]?.id || nextTabs[index - 1]?.id
-              : state.activeQueryTabId
+              : state.activeQueryTabId;
 
           return {
             queryTabs: nextTabs,
             activeQueryTabId: nextActive,
-          }
+          };
         }),
       closeAllTabs: () =>
         set(() => ({
@@ -759,15 +808,35 @@ export const useSidebarStore = create<SidebarState>()(
         })),
       reorderQueryTabs: (fromIndex, toIndex) =>
         set((state) => {
-          const tabs = [...state.queryTabs]
-          const [movedTab] = tabs.splice(fromIndex, 1)
-          tabs.splice(toIndex, 0, movedTab)
-          return { queryTabs: tabs }
+          const tabs = [...state.queryTabs];
+          const [movedTab] = tabs.splice(fromIndex, 1);
+          tabs.splice(toIndex, 0, movedTab);
+          return { queryTabs: tabs };
         }),
       setQuerySql: (sql) =>
         set((state) => ({
           queryTabs: state.queryTabs.map((tab) =>
-            tab.id === state.activeQueryTabId ? { ...tab, sql } : tab
+            tab.id === state.activeQueryTabId ? { ...tab, sql } : tab,
+          ),
+        })),
+      setQuerySaved: (sql) =>
+        set((state) => ({
+          queryTabs: state.queryTabs.map((tab) =>
+            tab.id === state.activeQueryTabId
+              ? { ...tab, savedSql: sql ?? tab.sql }
+              : tab,
+          ),
+        })),
+      setQueryFilePath: (filePath) =>
+        set((state) => ({
+          queryTabs: state.queryTabs.map((tab) =>
+            tab.id === state.activeQueryTabId ? { ...tab, filePath } : tab,
+          ),
+        })),
+      setQueryTitle: (tabId, title) =>
+        set((state) => ({
+          queryTabs: state.queryTabs.map((tab) =>
+            tab.id === tabId ? { ...tab, title } : tab,
           ),
         })),
       setConnectionLoading: (id, loading) =>
@@ -775,7 +844,7 @@ export const useSidebarStore = create<SidebarState>()(
           connections: setConnectionLoadingInList(
             state.connections,
             id,
-            loading
+            loading,
           ),
         })),
       setConnectionError: (id, error) =>
@@ -784,7 +853,11 @@ export const useSidebarStore = create<SidebarState>()(
         })),
       setConnectionSchemas: (id, schemas) =>
         set((state) => ({
-          connections: setConnectionSchemasInList(state.connections, id, schemas),
+          connections: setConnectionSchemasInList(
+            state.connections,
+            id,
+            schemas,
+          ),
         })),
       setSchemaLoading: (id, schema, loading) =>
         set((state) => ({
@@ -792,12 +865,17 @@ export const useSidebarStore = create<SidebarState>()(
             state.connections,
             id,
             schema,
-            loading
+            loading,
           ),
         })),
       setSchemaError: (id, schema, error) =>
         set((state) => ({
-          connections: setSchemaErrorInList(state.connections, id, schema, error),
+          connections: setSchemaErrorInList(
+            state.connections,
+            id,
+            schema,
+            error,
+          ),
         })),
       setSchemaTables: (id, schema, tables) =>
         set((state) => ({
@@ -805,7 +883,7 @@ export const useSidebarStore = create<SidebarState>()(
             state.connections,
             id,
             schema,
-            tables
+            tables,
           ),
         })),
       setTableColumnsLoading: (id, schema, table, loading) =>
@@ -815,7 +893,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            loading
+            loading,
           ),
         })),
       setTableColumnsError: (id, schema, table, error) =>
@@ -825,7 +903,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            error
+            error,
           ),
         })),
       setTableColumns: (id, schema, table, columns) =>
@@ -835,7 +913,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            columns
+            columns,
           ),
         })),
       setTableIndexesLoading: (id, schema, table, loading) =>
@@ -845,7 +923,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            loading
+            loading,
           ),
         })),
       setTableIndexesError: (id, schema, table, error) =>
@@ -855,7 +933,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            error
+            error,
           ),
         })),
       setTableIndexes: (id, schema, table, indexes) =>
@@ -865,7 +943,7 @@ export const useSidebarStore = create<SidebarState>()(
             id,
             schema,
             table,
-            indexes
+            indexes,
           ),
         })),
     }),
@@ -883,25 +961,32 @@ export const useSidebarStore = create<SidebarState>()(
       }),
       merge: (persisted, current) => {
         const safe = persisted as {
-          connections?: Array<{ config: ConnectionConfig }>
-          queryTabs?: QueryTab[]
-          activeQueryTabId?: string
-          selectedConnectionId?: string
-          selectedSchema?: { connectionId: string; name: string }
-          selectedTable?: { connectionId: string; schema: string; name: string }
-        }
+          connections?: Array<{ config: ConnectionConfig }>;
+          queryTabs?: QueryTab[];
+          activeQueryTabId?: string;
+          selectedConnectionId?: string;
+          selectedSchema?: { connectionId: string; name: string };
+          selectedTable?: {
+            connectionId: string;
+            schema: string;
+            name: string;
+          };
+        };
         const hydrated = (safe.connections ?? []).map((item) => ({
           config: item.config,
           schemas: [],
           loading: false,
-        }))
+        }));
 
-        const queryTabs = safe.queryTabs ?? []
+        const queryTabs = (safe.queryTabs ?? []).map((tab) => ({
+          ...tab,
+          savedSql: tab.savedSql ?? tab.sql,
+        }));
         const activeQueryTabId = queryTabs.some(
-          (tab) => tab.id === safe.activeQueryTabId
+          (tab) => tab.id === safe.activeQueryTabId,
         )
           ? safe.activeQueryTabId
-          : queryTabs[0]?.id
+          : queryTabs[0]?.id;
 
         return {
           ...current,
@@ -911,11 +996,11 @@ export const useSidebarStore = create<SidebarState>()(
           selectedConnectionId: safe.selectedConnectionId,
           selectedSchema: safe.selectedSchema,
           selectedTable: safe.selectedTable,
-        }
+        };
       },
-    }
-  )
-)
+    },
+  ),
+);
 
 export type {
   SidebarGroup,
@@ -924,4 +1009,4 @@ export type {
   ConnectionSchema,
   ConnectionState,
   TableColumn,
-}
+};

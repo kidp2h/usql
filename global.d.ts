@@ -1,5 +1,17 @@
 declare module "*.css" {}
 
+declare module "sql-formatter" {
+  export function format(
+    query: string,
+    options?: {
+      language?: string;
+      tabWidth?: number;
+      keywordCase?: "upper" | "lower" | "preserve";
+      linesBetweenQueries?: number;
+    },
+  ): string;
+}
+
 declare global {
   interface Window {
     electron: {
@@ -38,7 +50,7 @@ declare global {
           readOnly: boolean;
           name: string;
         },
-        schema: string
+        schema: string,
       ) => Promise<{ ok: boolean; tables?: string[]; message?: string }>;
       getColumns: (
         payload: {
@@ -53,7 +65,7 @@ declare global {
           name: string;
         },
         schema: string,
-        table: string
+        table: string,
       ) => Promise<{
         ok: boolean;
         columns?: { name: string; isPrimary: boolean; isForeign: boolean }[];
@@ -72,7 +84,7 @@ declare global {
           name: string;
         },
         schema: string,
-        table: string
+        table: string,
       ) => Promise<{ ok: boolean; indexes?: string[]; message?: string }>;
       executeQuery: (payload: {
         dbType: "postgres" | "mysql" | "mssql" | "sqlite";
@@ -91,6 +103,17 @@ declare global {
         rowCount?: number;
         message?: string;
       }>;
+      saveQuery: (payload: {
+        content: string;
+        suggestedName?: string;
+        filePath?: string;
+        forceDialog?: boolean;
+      }) => Promise<{
+        ok: boolean;
+        canceled?: boolean;
+        filePath?: string;
+        message?: string;
+      }>;
     };
   }
 
@@ -100,4 +123,3 @@ declare global {
 }
 
 export {};
-

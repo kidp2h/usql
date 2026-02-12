@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Moon, Sun } from "lucide-react";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -22,7 +22,12 @@ function getPreferredTheme(): "dark" | "light" {
     : "light";
 }
 
-export function ThemeToggle() {
+type ThemeToggleProps = {
+  size?: React.ComponentProps<typeof Button>["size"];
+  className?: string;
+};
+
+export function ThemeToggle({ size = "icon", className }: ThemeToggleProps) {
   const [theme, setTheme] = React.useState<"dark" | "light">("light");
 
   React.useEffect(() => {
@@ -40,16 +45,18 @@ export function ThemeToggle() {
     });
   }, []);
 
-  const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  const label =
+    theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
 
   return (
     <Button
       type="button"
       variant="ghost"
-      size="icon"
+      size={size}
       aria-label={label}
       title={label}
       onClick={toggleTheme}
+      className={className}
     >
       {theme === "dark" ? <Sun /> : <Moon />}
     </Button>

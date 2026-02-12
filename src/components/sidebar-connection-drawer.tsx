@@ -1,7 +1,11 @@
 "use client";
 
-import * as React from "react";
 import { Plus } from "lucide-react";
+import * as React from "react";
+import {
+  ConnectionForm,
+  type ConnectionFormValues,
+} from "@/components/connection-form";
 import {
   Sheet,
   SheetContent,
@@ -11,10 +15,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
-import {
-  ConnectionForm,
-  type ConnectionFormValues,
-} from "@/components/connection-form";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
 export function SidebarConnectionDrawer() {
@@ -27,7 +27,7 @@ export function SidebarConnectionDrawer() {
       const normalizedName = values.name.trim().toLowerCase();
       const hasDuplicate = connections.some(
         (connection) =>
-          connection.config.name.trim().toLowerCase() === normalizedName
+          connection.config.name.trim().toLowerCase() === normalizedName,
       );
 
       if (hasDuplicate) {
@@ -58,7 +58,7 @@ export function SidebarConnectionDrawer() {
 
       return { ok: false, message: result.message || "Connection failed." };
     },
-    [addConnection, connections]
+    [addConnection, connections],
   );
 
   const onTest = React.useCallback((values: ConnectionFormValues) => {

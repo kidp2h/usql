@@ -76,7 +76,7 @@ export function useMonacoTheme(): MonacoThemeHook {
           const clamped = clamp01(channel);
           return clamped <= 0.0031308
             ? 12.92 * clamped
-            : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+            : 1.055 * clamped ** (1 / 2.4) - 0.055;
         };
 
         r = encode(r);
@@ -84,8 +84,7 @@ export function useMonacoTheme(): MonacoThemeHook {
         bOut = encode(bOut);
 
         const alpha = alphaPart
-          ? parseFloat(alphaPart.trim()) /
-            (alphaPart.includes("%") ? 100 : 1)
+          ? parseFloat(alphaPart.trim()) / (alphaPart.includes("%") ? 100 : 1)
           : 1;
 
         if (Number.isNaN(alpha)) {
@@ -140,7 +139,7 @@ export function useMonacoTheme(): MonacoThemeHook {
           const clamped = clamp01(channel);
           return clamped <= 0.0031308
             ? 12.92 * clamped
-            : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+            : 1.055 * clamped ** (1 / 2.4) - 0.055;
         };
 
         r = encode(r);
@@ -148,8 +147,7 @@ export function useMonacoTheme(): MonacoThemeHook {
         bOut = encode(bOut);
 
         const alpha = alphaPart
-          ? parseFloat(alphaPart.trim()) /
-            (alphaPart.includes("%") ? 100 : 1)
+          ? parseFloat(alphaPart.trim()) / (alphaPart.includes("%") ? 100 : 1)
           : 1;
 
         if (Number.isNaN(alpha)) {
@@ -176,7 +174,7 @@ export function useMonacoTheme(): MonacoThemeHook {
             .map((value) => parseFloat(value));
           if (numbers.length >= 3) {
             return `#${toHex(numbers[0] / 255)}${toHex(
-              numbers[1] / 255
+              numbers[1] / 255,
             )}${toHex(numbers[2] / 255)}`;
           }
         }
@@ -206,7 +204,10 @@ export function useMonacoTheme(): MonacoThemeHook {
       const background = resolveColor("var(--card)", "#ffffff");
       const foreground = resolveColor("var(--foreground)", "#111111");
       const muted = resolveColor("var(--muted)", "#f5f5f5");
-      const mutedForeground = resolveColor("var(--muted-foreground)", "#6b6b6b");
+      const mutedForeground = resolveColor(
+        "var(--muted-foreground)",
+        "#6b6b6b",
+      );
       const border = resolveColor("var(--border)", "#e5e5e5");
       const accent = resolveColor("var(--accent)", "#f0f0f0");
       const primary = resolveColor("var(--primary)", "#111111");
@@ -304,7 +305,7 @@ export function useMonacoTheme(): MonacoThemeHook {
 
       document.body.removeChild(resolver);
     },
-    []
+    [],
   );
 
   React.useEffect(() => {

@@ -1,17 +1,16 @@
 "use client";
 
 import * as React from "react";
-
-import { QueryEditor } from "@/components/query-editor/query-editor";
-import { QueryHeaderActions } from "@/components/query/query-header-actions";
 import { QueryResultsPanel } from "@/components/query/query-results-panel";
 import { QueryTabsBar } from "@/components/query/query-tabs-bar";
 import type { QueryResult } from "@/components/query/types";
+import { QueryEditor } from "@/components/query-editor/query-editor";
+import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
   ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -21,40 +20,39 @@ export default function Home() {
   const queryTabs = useSidebarStore((state) => state.queryTabs);
   const activeQueryTabId = useSidebarStore((state) => state.activeQueryTabId);
   const connections = useSidebarStore((state) => state.connections);
-  const setActiveQueryTab = useSidebarStore(
-    (state) => state.setActiveQueryTab
+  const [queryResult, setQueryResult] = React.useState<QueryResult | null>(
+    null,
   );
+  const setActiveQueryTab = useSidebarStore((state) => state.setActiveQueryTab);
   const closeQueryTab = useSidebarStore((state) => state.closeQueryTab);
   const closeAllTabs = useSidebarStore((state) => state.closeAllTabs);
   const reorderQueryTabs = useSidebarStore((state) => state.reorderQueryTabs);
   const setQuerySql = useSidebarStore((state) => state.setQuerySql);
+  const setQuerySaved = useSidebarStore((state) => state.setQuerySaved);
+  const setQueryFilePath = useSidebarStore((state) => state.setQueryFilePath);
+  const setQueryTitle = useSidebarStore((state) => state.setQueryTitle);
   const closeQuery = useSidebarStore((state) => state.closeQuery);
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [isExplainMode, setIsExplainMode] = React.useState(false);
-  const [queryResult, setQueryResult] = React.useState<QueryResult | null>(
-    null
-  );
+
   const [executionTime, setExecutionTime] = React.useState<number | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = React.useState(false);
+  // Thêm ref cho getSelectedText
+  const getSelectedTextRef = React.useRef<(() => string | null) | null>(null);
 
+  // Thêm callback này
+  const handleEditorMount = React.useCallback(
+    (getSelectedText: () => string | null) => {
+      getSelectedTextRef.current = getSelectedText;
+    },
+    [],
+  );
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || event.key.toLowerCase() !== "q") {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      closeQuery();
-    };
-
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () =>
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, [closeQuery]);
-
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "w") {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "w"
+      ) {
         return;
       }
 
@@ -78,9 +76,7 @@ export default function Home() {
       return undefined;
     }
 
-    return (
-      queryTabs.find((tab) => tab.id === activeQueryTabId) ?? queryTabs[0]
-    );
+    return queryTabs.find((tab) => tab.id === activeQueryTabId) ?? queryTabs[0];
   }, [activeQueryTabId, queryTabs]);
 
   const formatSQL = React.useCallback(async () => {
@@ -124,9 +120,77 @@ export default function Home() {
     await copyText(activeTab.sql);
   }, [activeTab?.sql, copyText]);
 
+  const saveAsSQL = React.useCallback(async () => {
+    if (!activeTab?.sql) {
+      return;
+    }
+
+    if (!window.electron?.saveQuery) {
+      alert("Save is only available in the desktop app.");
+      return;
+    }
+
+    const suggestedName = `${activeTab.title || "query"}.sql`;
+    const result = await window.electron.saveQuery({
+      content: activeTab.sql,
+      suggestedName,
+      filePath: activeTab.filePath,
+      forceDialog: true,
+    });
+
+    if (result.ok && !result.canceled) {
+      setQuerySaved(activeTab.sql);
+      if (result.filePath) {
+        const filePath = result.filePath;
+        setQueryFilePath(filePath);
+        const name = filePath.split(/[/\\]/).pop()?.trim();
+        if (name) {
+          setQueryTitle(activeTab.id, name);
+        }
+      }
+    } else if (!result.ok) {
+      alert(result.message || "Save failed");
+    }
+  }, [activeTab, setQueryFilePath, setQuerySaved, setQueryTitle]);
+
+  const saveSQL = React.useCallback(async () => {
+    if (!activeTab?.sql) {
+      return;
+    }
+
+    if (!window.electron?.saveQuery) {
+      alert("Save is only available in the desktop app.");
+      return;
+    }
+
+    if (!activeTab.filePath) {
+      await saveAsSQL();
+      return;
+    }
+
+    const suggestedName = `${activeTab.title || "query"}.sql`;
+    const result = await window.electron.saveQuery({
+      content: activeTab.sql,
+      suggestedName,
+      filePath: activeTab.filePath,
+    });
+
+    if (result.ok && !result.canceled) {
+      setQuerySaved(activeTab.sql);
+      if (result.filePath) {
+        setQueryFilePath(result.filePath);
+      }
+    } else if (!result.ok) {
+      alert(result.message || "Save failed");
+    }
+  }, [activeTab, saveAsSQL, setQueryFilePath, setQuerySaved]);
+
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "l") {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "l"
+      ) {
         return;
       }
 
@@ -140,7 +204,50 @@ export default function Home() {
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [formatSQL]);
 
-  const contextLabel = React.useMemo(() => {
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "s"
+      ) {
+        return;
+      }
+
+      if (event.shiftKey) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void saveSQL();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [saveSQL]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) {
+        return;
+      }
+
+      if (event.key.toLowerCase() !== "s") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void saveAsSQL();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [saveAsSQL]);
+
+  const _contextLabel = React.useMemo(() => {
     if (!activeTab?.context) {
       return "";
     }
@@ -155,17 +262,57 @@ export default function Home() {
     return parts.join(" / ");
   }, [activeTab?.context]);
 
+  const isActiveDirty = React.useMemo(() => {
+    if (!activeTab) {
+      return false;
+    }
+
+    const savedSql = activeTab.savedSql ?? activeTab.sql;
+    return savedSql !== activeTab.sql;
+  }, [activeTab]);
+
   const activeConnection = React.useMemo(() => {
     if (!activeTab?.context?.connectionId) {
       return undefined;
     }
 
     return connections.find(
-      (connection) => connection.config.id === activeTab.context?.connectionId
+      (connection) => connection.config.id === activeTab.context?.connectionId,
     );
   }, [activeTab?.context?.connectionId, connections]);
 
-  const canExecute = Boolean(activeTab?.sql.trim()) && Boolean(activeConnection);
+  const _canExecute =
+    Boolean(activeTab?.sql.trim()) && Boolean(activeConnection);
+
+  const requestCloseQuery = React.useCallback(() => {
+    if (!activeTab) {
+      closeQuery();
+      return;
+    }
+
+    if (!isActiveDirty) {
+      closeQuery();
+      return;
+    }
+
+    setShowUnsavedDialog(true);
+  }, [activeTab, closeQuery, isActiveDirty]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.key.toLowerCase() !== "q") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void requestCloseQuery();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [requestCloseQuery]);
 
   const executeQuery = React.useCallback(async () => {
     if (!activeTab || !activeConnection || !activeTab.sql.trim()) {
@@ -177,6 +324,17 @@ export default function Home() {
       return;
     }
 
+    let sqlToExecute = activeTab.sql;
+    if (getSelectedTextRef.current) {
+      const selectedText = getSelectedTextRef.current();
+      if (selectedText && selectedText.trim()) {
+        sqlToExecute = selectedText;
+      }
+    }
+
+    if (!sqlToExecute.trim()) {
+      return;
+    }
     setIsExecuting(true);
     setQueryResult(null);
     setExecutionTime(null);
@@ -195,7 +353,7 @@ export default function Home() {
         ssl: activeConnection.config.ssl,
         readOnly: activeConnection.config.readOnly,
         name: activeConnection.config.name,
-        sql: activeTab.sql,
+        sql: sqlToExecute,
       });
 
       if (!result.ok) {
@@ -216,7 +374,7 @@ export default function Home() {
         rows,
         rowCount: result.rowCount ?? rows.length,
       });
-      
+
       const endTime = performance.now();
       setExecutionTime(Math.round(endTime - startTime));
     } finally {
@@ -228,9 +386,15 @@ export default function Home() {
     if (!activeTab || !activeConnection || !activeTab.sql.trim()) {
       return;
     }
+    let sqlToExplain = activeTab.sql.trim();
+    if (getSelectedTextRef.current) {
+      const selectedText = getSelectedTextRef.current();
+      if (selectedText && selectedText.trim()) {
+        sqlToExplain = selectedText.trim();
+      }
+    }
 
-    const trimmedSql = activeTab.sql.trim();
-    if (!trimmedSql.toUpperCase().startsWith("SELECT")) {
+    if (!sqlToExplain.toUpperCase().startsWith("SELECT")) {
       alert("EXPLAIN ANALYZE only works with SELECT queries");
       return;
     }
@@ -248,7 +412,7 @@ export default function Home() {
 
     const startTime = performance.now();
     try {
-      const explainSql = `EXPLAIN ANALYZE ${trimmedSql}`;
+      const explainSql = `EXPLAIN ANALYZE ${sqlToExplain}`;
       const result = await window.electron.executeQuery({
         dbType: activeConnection.config.dbType,
         host: activeConnection.config.host,
@@ -280,13 +444,69 @@ export default function Home() {
         rows,
         rowCount: result.rowCount ?? rows.length,
       });
-      
+
       const endTime = performance.now();
       setExecutionTime(Math.round(endTime - startTime));
     } finally {
       setIsExecuting(false);
     }
   }, [activeConnection, activeTab, setOpen]);
+
+  React.useEffect(() => {
+    const handleCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      const type = detail?.type;
+
+      switch (type) {
+        case "save":
+          void saveSQL();
+          break;
+        case "save-as":
+          void saveAsSQL();
+          break;
+        case "format":
+          void formatSQL();
+          break;
+        case "copy":
+          void copySQL();
+          break;
+        case "execute":
+          void executeQuery();
+          break;
+        case "explain":
+          void explainAnalyzeQuery();
+          break;
+        case "close-tab":
+          if (activeQueryTabId) {
+            closeQueryTab(activeQueryTabId);
+          }
+          break;
+        case "close-all-tabs":
+          closeAllTabs();
+          break;
+        case "close-query":
+          requestCloseQuery();
+          break;
+        default:
+          break;
+      }
+    };
+
+    globalThis.addEventListener("usql:command", handleCommand);
+    return () => globalThis.removeEventListener("usql:command", handleCommand);
+  }, [
+    activeQueryTabId,
+    closeAllTabs,
+    closeQuery,
+    closeQueryTab,
+    copySQL,
+    executeQuery,
+    explainAnalyzeQuery,
+    formatSQL,
+    requestCloseQuery,
+    saveAsSQL,
+    saveSQL,
+  ]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -296,7 +516,7 @@ export default function Home() {
 
       event.preventDefault();
       event.stopPropagation();
-      
+
       if (event.shiftKey) {
         void explainAnalyzeQuery();
       } else {
@@ -318,58 +538,75 @@ export default function Home() {
     }
     setIsExplainMode(false);
   }, [queryResult]);
-  if (queryTabs.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-muted-foreground/40 p-6 text-muted-foreground">
-        Select a connection or table, then choose New query (or press <Kbd>⌘ + N</Kbd>).
-      </div>
-    );
-  }
+
+  
 
   return (
-    <section className="flex h-full min-h-105 min-w-0 flex-col rounded-xl border bg-card shadow-sm">
-      <QueryTabsBar
-        tabs={queryTabs}
-        activeTabId={activeTab?.id}
-        onActivateTab={setActiveQueryTab}
-        onCloseTab={closeQueryTab}
-        onCloseAllTabs={closeAllTabs}
-        onReorderTabs={reorderQueryTabs}
-      />
-      <QueryHeaderActions
-        contextLabel={contextLabel}
-        hasSql={Boolean(activeTab?.sql)}
-        isExecuting={isExecuting}
-        canExecute={canExecute}
-        onFormat={() => void formatSQL()}
-        onCopy={() => void copySQL()}
-        onExecute={() => void executeQuery()}
-        onExplain={() => void explainAnalyzeQuery()}
-        onClose={closeQuery}
-      />
-      <ResizablePanelGroup orientation="vertical" className="flex-1 min-w-0">
-        <ResizablePanel defaultSize={30} minSize={15}>
-          <div className="h-full w-full overflow-hidden rounded-md border">
-            {activeTab ? (
-              <QueryEditor
-                value={activeTab.sql}
-                onChange={setQuerySql}
-                documentUri={`inmemory://model/${activeTab.id}.sql`}
-              />
-            ) : null}
+    
+    <>
+      <section className="flex h-full min-h-105 min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+        <QueryTabsBar
+          tabs={queryTabs}
+          activeTabId={activeTab?.id}
+          onActivateTab={setActiveQueryTab}
+          onCloseTab={closeQueryTab}
+          onCloseAllTabs={closeAllTabs}
+          onReorderTabs={reorderQueryTabs}
+        />
+        <ResizablePanelGroup orientation="vertical" className="flex-1 min-w-0">
+          <ResizablePanel defaultSize={30} minSize={15}>
+            <div className="h-full w-full overflow-hidden rounded-md">
+              {activeTab ? (
+                <QueryEditor
+                  language="sql"
+                  readonly={false}
+                  value={activeTab.sql}
+                  onChange={setQuerySql}
+                  documentUri={`inmemory://model/${activeTab.id}.sql`}
+                  onEditorMount={handleEditorMount}
+                />
+              ) : null}
+            </div>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={70} minSize={15}>
+            <QueryResultsPanel
+              isExecuting={isExecuting}
+              queryResult={queryResult}
+              isExplainMode={isExplainMode}
+              executionTime={executionTime}
+              copyText={copyText}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </section>
+      {showUnsavedDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-4 shadow-lg">
+            <h3 className="text-sm font-semibold">Unsaved changes</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This query has unsaved changes. Close it anyway?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowUnsavedDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setShowUnsavedDialog(false);
+                  closeQuery();
+                }}
+              >
+                Close Without Saving
+              </Button>
+            </div>
           </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={70} minSize={15}>
-          <QueryResultsPanel
-            isExecuting={isExecuting}
-            queryResult={queryResult}
-            isExplainMode={isExplainMode}
-            executionTime={executionTime}
-            copyText={copyText}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </section>
+        </div>
+      ) : null}
+    </>
   );
 }

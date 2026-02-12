@@ -91,14 +91,7 @@ declare global {
         rowCount?: number;
         message?: string;
       }>;
-      getLspStatus: () => Promise<{ ok: boolean; ready?: boolean; transport?: string; message?: string }>;
-
     };
-    electronLSP: {
-      sendToLSP: (data: string) => void;
-      onLSPMessage: (callback: (data: string) => void) => () => void;
-      isAvailable: () => boolean;
-  };
   }
 
   interface GlobalThis {

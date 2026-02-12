@@ -31,8 +31,7 @@ export function QueryHeaderActions({
   return (
     <header className="flex items-center justify-between border-b px-4 py-3">
       <div>
-        <h2 className="text-sm font-semibold">New SQL Query</h2>
-        <p className="text-xs text-muted-foreground">{contextLabel}</p>
+        <h2 className="text-sm font-semibold">SQL Query</h2>
       </div>
       <div className="flex items-center gap-2">
         <Button size="sm" variant="outline" onClick={onFormat} disabled={!hasSql}>

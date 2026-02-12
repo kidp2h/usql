@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const { Duplex } = require("stream");
 const {
   testHandlers,
   schemaHandlers,
@@ -11,54 +10,7 @@ const {
   indexHandlers,
   queryHandlers,
 } = require("./db/test-handlers.cjs");
-const { createSQLLanguageServer } = require('../lsp/sql.cjs');
-
 const isMac = process.platform === "darwin";
-const lspState = {
-  connection: null,
-  readerStream: null,
-  writerStream: null,
-  ready: false,
-};
-
-// Custom Duplex Stream cho IPC
-class IPCStream extends Duplex {
-  constructor(channel) {
-    super();
-    this.channel = channel;
-    this.webContents = null;
-  }
-
-  setWebContents(webContents) {
-    this.webContents = webContents;
-  }
-
-  _write(chunk, encoding, callback) {
-    if (this.webContents && !this.webContents.isDestroyed()) {
-      try {
-        this.webContents.send(this.channel, chunk.toString('utf-8'));
-        callback();
-      } catch (error) {
-        console.error('[LSP] Error writing to IPC:', error);
-        callback(error);
-      }
-    } else {
-      callback(new Error('WebContents is destroyed'));
-    }
-  }
-
-  _read(size) {
-    // Data will be pushed via receive()
-  }
-
-  receive(data) {
-    try {
-      this.push(Buffer.from(data, 'utf-8'));
-    } catch (error) {
-      console.error('[LSP] Error receiving IPC data:', error);
-    }
-  }
-}
 
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -134,6 +86,10 @@ function createWindow(startUrl) {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 1366,
+    minHeight: 768,
+    maxWidth: 1920,
+    maxHeight: 1080,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -143,84 +99,9 @@ function createWindow(startUrl) {
   });
 
   win.loadURL(startUrl);
-
-  // Start LSP khi window đã load xong
-  win.webContents.on('did-finish-load', () => {
-    startLspServer(win.webContents);
-  });
+  win.maximize();
 
   return win;
-}
-
-function startLspServer(webContents) {
-  if (lspState.ready) {
-    console.log('[LSP] Server already running');
-    return;
-  }
-
-  console.log('[LSP] Starting SQL Language Server with IPC...');
-
-  try {
-    // Tạo IPC streams
-    lspState.readerStream = new IPCStream('lsp-to-client');
-    lspState.writerStream = new IPCStream('lsp-to-client');
-
-    lspState.readerStream.setWebContents(webContents);
-    lspState.writerStream.setWebContents(webContents);
-
-    // Handle messages từ renderer process
-    ipcMain.removeAllListeners('client-to-lsp');
-    ipcMain.on('client-to-lsp', (event, data) => {
-      if (lspState.readerStream) {
-        lspState.readerStream.receive(data);
-      }
-    });
-
-    // Configuration cho SQL Language Server
-    const config = {
-      dialect: 'generic', // hoặc 'mysql', 'postgres', 'sqlite3', 'mssql'
-      connections: [],
-    };
-
-    // Tạo SQL Language Server với IPC transport
-    lspState.connection = createSQLLanguageServer({
-      reader: lspState.readerStream,
-      writer: lspState.writerStream,
-    }, config);
-
-    lspState.ready = true;
-    console.log('[LSP] SQL Language Server started successfully via IPC');
-
-  } catch (error) {
-    console.error('[LSP] Failed to start SQL Language Server:', error);
-    lspState.ready = false;
-  }
-}
-
-function cleanupLSP() {
-  console.log('[LSP] Cleaning up LSP Server...');
-  
-  if (lspState.connection) {
-    try {
-      lspState.connection.dispose();
-    } catch (error) {
-      console.error('[LSP] Error disposing LSP connection:', error);
-    }
-    lspState.connection = null;
-  }
-
-  if (lspState.readerStream) {
-    lspState.readerStream.destroy();
-    lspState.readerStream = null;
-  }
-
-  if (lspState.writerStream) {
-    lspState.writerStream.destroy();
-    lspState.writerStream = null;
-  }
-
-  ipcMain.removeAllListeners('client-to-lsp');
-  lspState.ready = false;
 }
 
 // Database handlers
@@ -302,25 +183,6 @@ ipcMain.handle("execute-query", async (_event, payload) => {
   return handler(payload, payload.sql);
 });
 
-// LSP status handler (thay cho get-lsp-port)
-ipcMain.handle("get-lsp-status", async () => {
-  try {
-    console.log('[LSP] get-lsp-status request');
-    
-    if (!lspState.ready) {
-      return { ok: false, message: "LSP server not ready" };
-    }
-
-    console.log('[LSP] get-lsp-status response: ready');
-    return { ok: true, ready: true, transport: 'ipc' };
-  } catch (error) {
-    console.error('[LSP] get-lsp-status error', error);
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : "Failed to get LSP status",
-    };
-  }
-});
 
 // App lifecycle
 app.whenReady().then(async () => {
@@ -338,13 +200,8 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (!isMac) {
-    cleanupLSP();
     app.quit();
   }
-});
-
-app.on("before-quit", () => {
-  cleanupLSP();
 });
 
 // Error handling

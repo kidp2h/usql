@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Copy,
   Eye,
-  EyeOff,
   Filter,
   Pin,
   PinOff,
@@ -61,7 +60,33 @@ export function QueryResultsPanel({
   executionTime,
   copyText,
 }: QueryResultsPanelProps) {
+  // #region handlers
+  const formatFilterValue = React.useCallback((value: unknown) => {
+    if (value === null || value === undefined) {
+      return "NULL";
+    }
+    if (typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }, []);
+  const getTruncatedCellText = React.useCallback((text: string) => {
+    if (text.length <= maxCellChars) {
+      return { text, extra: 0 };
+    }
+    return {
+      text: text.slice(0, maxCellChars),
+      extra: text.length - maxCellChars,
+    };
+  }, []);
+  
+  // #endregion
 
+  // #region States, variables, memos, refs
   const [columnWidths, setColumnWidths] = React.useState<
     Record<string, number>
   >({});
@@ -102,8 +127,78 @@ export function QueryResultsPanel({
   const filterButtonRefs = React.useRef<
     Record<string, HTMLButtonElement | null>
   >({});
+  const tableContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const columnValueCounts = React.useMemo(() => {
+    if (!queryResult) {
+      return {} as Record<string, Record<string, number>>;
+    }
+
+    const counts: Record<string, Record<string, number>> = {};
+    queryResult.columns.forEach((column) => {
+      counts[column] = {};
+    });
+
+    queryResult.rows.forEach((row) => {
+      queryResult.columns.forEach((column) => {
+        const value = formatFilterValue(row[column]);
+        const next = (counts[column]?.[value] ?? 0) + 1;
+        counts[column][value] = next;
+      });
+    });
+
+    return counts;
+  }, [formatFilterValue, queryResult]);
   const [filterPopoverStyle, setFilterPopoverStyle] =
     React.useState<React.CSSProperties | null>(null);
+  const indexedRows = React.useMemo<IndexedRow[]>(() => {
+    return queryResult?.rows.map((row, index) => ({ row, index })) ?? [];
+  }, [queryResult]);
+
+  const filteredRows = React.useMemo<IndexedRow[]>(() => {
+    if (!queryResult) {
+      return [];
+    }
+
+    if (Object.keys(columnFilters).length === 0) {
+      return indexedRows;
+    }
+
+    return indexedRows.filter((entry) => {
+      for (const [column, values] of Object.entries(columnFilters)) {
+        if (values.size === 0) {
+          continue;
+        }
+        const cellValue = formatFilterValue(entry.row[column]);
+        if (!values.has(cellValue)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [columnFilters, formatFilterValue, indexedRows, queryResult]);
+
+  const visibleRowKeys = React.useMemo(
+    () => filteredRows.map((entry) => String(entry.index)),
+    [filteredRows],
+  );
+  const visibleColumns = React.useMemo(() => {
+    const filtered = (queryResult?.columns ?? []).filter(
+      (column) => !hiddenColumns.has(column),
+    );
+    return filtered.sort((a, b) => {
+      const aPinned = pinnedColumns.has(a);
+      const bPinned = pinnedColumns.has(b);
+      if (aPinned === bPinned) return 0;
+      return aPinned ? -1 : 1;
+    });
+  }, [hiddenColumns, pinnedColumns, queryResult?.columns]);
+
+  const allVisibleSelected =
+    visibleRowKeys.length > 0 &&
+    visibleRowKeys.every((key) => checkedRows.has(key));
+
+  // #endregion
 
   React.useEffect(() => {
     if (queryResult) {
@@ -218,28 +313,6 @@ export function QueryResultsPanel({
     };
   }, [openFilterColumn]);
 
-  const formatFilterValue = React.useCallback((value: unknown) => {
-    if (value === null || value === undefined) {
-      return "NULL";
-    }
-    if (typeof value === "object") {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
-    }
-    return String(value);
-  }, []);
-  const getTruncatedCellText = React.useCallback((text: string) => {
-    if (text.length <= maxCellChars) {
-      return { text, extra: 0 };
-    }
-    return {
-      text: text.slice(0, maxCellChars),
-      extra: text.length - maxCellChars,
-    };
-  }, []);
   const columnValueOptions = React.useMemo(() => {
     if (!queryResult) {
       return {} as Record<string, string[]>;
@@ -266,27 +339,6 @@ export function QueryResultsPanel({
     });
 
     return options;
-  }, [formatFilterValue, queryResult]);
-
-  const columnValueCounts = React.useMemo(() => {
-    if (!queryResult) {
-      return {} as Record<string, Record<string, number>>;
-    }
-
-    const counts: Record<string, Record<string, number>> = {};
-    queryResult.columns.forEach((column) => {
-      counts[column] = {};
-    });
-
-    queryResult.rows.forEach((row) => {
-      queryResult.columns.forEach((column) => {
-        const value = formatFilterValue(row[column]);
-        const next = (counts[column]?.[value] ?? 0) + 1;
-        counts[column][value] = next;
-      });
-    });
-
-    return counts;
   }, [formatFilterValue, queryResult]);
 
   const getCellValueInfo = React.useCallback(
@@ -350,53 +402,6 @@ export function QueryResultsPanel({
         return "";
     }
   }, []);
-
-  const indexedRows = React.useMemo<IndexedRow[]>(() => {
-    return queryResult?.rows.map((row, index) => ({ row, index })) ?? [];
-  }, [queryResult]);
-
-  const filteredRows = React.useMemo<IndexedRow[]>(() => {
-    if (!queryResult) {
-      return [];
-    }
-
-    if (Object.keys(columnFilters).length === 0) {
-      return indexedRows;
-    }
-
-    return indexedRows.filter((entry) => {
-      for (const [column, values] of Object.entries(columnFilters)) {
-        if (values.size === 0) {
-          continue;
-        }
-        const cellValue = formatFilterValue(entry.row[column]);
-        if (!values.has(cellValue)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [columnFilters, formatFilterValue, indexedRows, queryResult]);
-
-  const visibleRowKeys = React.useMemo(
-    () => filteredRows.map((entry) => String(entry.index)),
-    [filteredRows],
-  );
-  const visibleColumns = React.useMemo(() => {
-    const filtered = (queryResult?.columns ?? []).filter(
-      (column) => !hiddenColumns.has(column),
-    );
-    return filtered.sort((a, b) => {
-      const aPinned = pinnedColumns.has(a);
-      const bPinned = pinnedColumns.has(b);
-      if (aPinned === bPinned) return 0;
-      return aPinned ? -1 : 1;
-    });
-  }, [hiddenColumns, pinnedColumns, queryResult?.columns]);
-
-  const allVisibleSelected =
-    visibleRowKeys.length > 0 &&
-    visibleRowKeys.every((key) => checkedRows.has(key));
 
   const getExportRows = React.useCallback(() => {
     if (!queryResult) {
@@ -511,7 +516,27 @@ export function QueryResultsPanel({
     document.body.removeChild(link);
   }, [getExportRows, queryResult]);
 
+  React.useEffect(() => {
+    const handleCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      switch (detail?.type) {
+        case "result-export-csv":
+          exportToCSV();
+          break;
+        case "result-export-json":
+          exportToJSON();
+          break;
+        case "result-show-all-columns":
+          showAllColumns();
+          break;
+        default:
+          break;
+      }
+    };
 
+    globalThis.addEventListener("usql:command", handleCommand);
+    return () => globalThis.removeEventListener("usql:command", handleCommand);
+  }, [exportToCSV, exportToJSON, showAllColumns]);
 
   const viewJson = (j) => {
     try {
@@ -521,7 +546,7 @@ export function QueryResultsPanel({
     } catch {
       toast.error("Selected cell is not valid JSON");
     }
-  }
+  };
 
   const startResize = React.useCallback(
     (event: React.MouseEvent<HTMLElement>, column: string) => {
@@ -794,26 +819,26 @@ export function QueryResultsPanel({
         const rowsWithTypes = getSelectedMatrixWithTypes();
         const content = flattenRows
           ? rowsWithTypes
-            .flat()
-            .map((item) => {
-              if (item.type === "string") {
-                return `"${item.value.replace(/"/g, '""')}"`;
-              }
-              return item.value;
-            })
-            .join(separator)
+              .flat()
+              .map((item) => {
+                if (item.type === "string") {
+                  return `"${item.value.replace(/"/g, '""')}"`;
+                }
+                return item.value;
+              })
+              .join(separator)
           : rowsWithTypes
-            .map((row) =>
-              row
-                .map((item) => {
-                  if (item.type === "string") {
-                    return `'${item.value.replace(/'/g, "''")}'`;
-                  }
-                  return item.value;
-                })
-                .join(separator),
-            )
-            .join("\n");
+              .map((row) =>
+                row
+                  .map((item) => {
+                    if (item.type === "string") {
+                      return `'${item.value.replace(/'/g, "''")}'`;
+                    }
+                    return item.value;
+                  })
+                  .join(separator),
+              )
+              .join("\n");
         void copyText(content);
         return;
       }
@@ -879,6 +904,21 @@ export function QueryResultsPanel({
     return () => window.removeEventListener("mouseup", handleMouseUp);
   }, [isSelecting]);
 
+  React.useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (tableContainerRef.current?.contains(target)) {
+        return;
+      }
+      setIsSelecting(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
   const toggleFilterValue = React.useCallback(
     (column: string, value: string) => {
       setColumnFilters((prev) => {
@@ -939,40 +979,40 @@ export function QueryResultsPanel({
   );
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
+      const key = event.key.toLowerCase();
 
       // Ctrl + Alt + J
       if (event.ctrlKey && event.altKey && key === "j") {
-        event.preventDefault()
-        event.stopPropagation()
-        void viewJson(getSelectedMatrix()[0][0])
-        return
+        event.preventDefault();
+        event.stopPropagation();
+        void viewJson(getSelectedMatrix()[0][0]);
+        return;
       }
 
       // Ctrl/Cmd + Shift + ...
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) {
-        return
+        return;
       }
 
       if (key === "c") {
-        event.preventDefault()
-        event.stopPropagation()
-        void exportToCSV()
+        event.preventDefault();
+        event.stopPropagation();
+        void exportToCSV();
       } else if (key === "j") {
-        event.preventDefault()
-        event.stopPropagation()
-        void exportToJSON()
+        event.preventDefault();
+        event.stopPropagation();
+        void exportToJSON();
       } else if (key === "h") {
-        event.preventDefault()
-        event.stopPropagation()
-        showAllColumns()
+        event.preventDefault();
+        event.stopPropagation();
+        showAllColumns();
       }
-    }
+    };
 
-    window.addEventListener("keydown", handleKeyDown, { capture: true })
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () =>
-      window.removeEventListener("keydown", handleKeyDown, { capture: true })
-  }, [exportToCSV, exportToJSON, showAllColumns, getSelectedMatrix])
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [exportToCSV, exportToJSON, showAllColumns, getSelectedMatrix]);
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-md border">
       <div className="border-b px-3 py-2 text-xs text-muted-foreground">
@@ -995,84 +1035,7 @@ export function QueryResultsPanel({
               </span>
             ) : null}
           </div>
-          {queryResult && queryResult.rows.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void exportToCSV()}
-                className="h-6 px-2 text-xs"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <span>
-                    Export CSV {checkedRows.size > 0 && `(${checkedRows.size})`}
-                  </span>
-                  <Kbd className="opacity-70">⌘ ⇧ C</Kbd>
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void exportToJSON()}
-                className="h-6 px-2 text-xs"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <span>
-                    Export JSON{" "}
-                    {checkedRows.size > 0 && `(${checkedRows.size})`}
-                  </span>
-                  <Kbd className="opacity-70">⌘ ⇧ J</Kbd>
-                </span>
-              </Button>
-              <div className="relative" ref={hiddenColumnsRef}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setOpenHiddenColumns((current) => !current)}
-                  className="h-6 px-2 text-xs"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <EyeOff className="size-3.5" />
-                    <span>
-                      Hidden{" "}
-                      {hiddenColumns.size > 0 && `(${hiddenColumns.size})`}
-                    </span>
-                    <Kbd className="opacity-70">⌘ ⇧ H</Kbd>
-                  </span>
-                </Button>
-                {openHiddenColumns ? (
-                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-md border bg-card p-2 text-xs shadow-lg">
-                    {hiddenColumns.size === 0 ? (
-                      <div className="px-2 py-1 text-muted-foreground">
-                        No hidden columns
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {Array.from(hiddenColumns).map((column) => (
-                          <button
-                            key={column}
-                            type="button"
-                            onClick={() => toggleColumnVisibility(column)}
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 hover:bg-muted"
-                          >
-                            <Eye className="size-3.5" />
-                            <span className="truncate">{column}</span>
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={showAllColumns}
-                          className="mt-1 w-full rounded px-2 py-1 text-left text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                          Show all columns
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
+          
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -1121,7 +1084,7 @@ export function QueryResultsPanel({
         ) : (
           <ContextMenu>
             <ContextMenuTrigger asChild>
-              <div className="w-full overflow-x-auto">
+              <div className="w-full overflow-x-auto" ref={tableContainerRef}>
                 <table className="w-full min-w-max text-sm select-none">
                   <thead className="sticky top-0 bg-card">
                     <tr>
@@ -1201,72 +1164,72 @@ export function QueryResultsPanel({
                                     <Filter className="size-3.5" />
                                   </button>
                                   {openFilterColumn === column &&
-                                    filterPopoverStyle
+                                  filterPopoverStyle
                                     ? createPortal(
-                                      <div
-                                        ref={filterPopoverRef}
-                                        style={filterPopoverStyle}
-                                        className="rounded-md border bg-card p-2 shadow-lg"
-                                      >
-                                        <div className="max-h-64 overflow-auto">
-                                          {(columnValueOptions[column] ?? [])
-                                            .length > 0 ? (
-                                            columnValueOptions[column].map(
-                                              (value) => {
-                                                const isChecked =
-                                                  columnFilters[column]?.has(
-                                                    value,
-                                                  ) ?? false;
-                                                const count =
-                                                  columnValueCounts[column]?.[
-                                                  value
-                                                  ] ?? 0;
-                                                return (
-                                                  <div
-                                                    key={value}
-                                                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
-                                                  >
-                                                    <Checkbox
-                                                      checked={isChecked}
-                                                      onCheckedChange={() =>
-                                                        toggleFilterValue(
-                                                          column,
-                                                          value,
-                                                        )
-                                                      }
-                                                    />
-                                                    <span className="truncate">
-                                                      {value}
-                                                    </span>
-                                                    <span className="ml-auto text-xs text-muted-foreground">
-                                                      {count}
-                                                    </span>
-                                                  </div>
-                                                );
-                                              },
-                                            )
-                                          ) : (
-                                            <div className="px-2 py-1 text-xs text-muted-foreground">
-                                              No values
-                                            </div>
-                                          )}
-                                        </div>
-                                        {columnFilters[column]?.size ? (
-                                          <div className="mt-2 flex items-center justify-end">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                clearColumnFilter(column)
-                                              }
-                                              className="text-xs text-muted-foreground hover:text-foreground"
-                                            >
-                                              Clear filter
-                                            </button>
+                                        <div
+                                          ref={filterPopoverRef}
+                                          style={filterPopoverStyle}
+                                          className="rounded-md border bg-card p-2 shadow-lg"
+                                        >
+                                          <div className="max-h-64 overflow-auto">
+                                            {(columnValueOptions[column] ?? [])
+                                              .length > 0 ? (
+                                              columnValueOptions[column].map(
+                                                (value) => {
+                                                  const isChecked =
+                                                    columnFilters[column]?.has(
+                                                      value,
+                                                    ) ?? false;
+                                                  const count =
+                                                    columnValueCounts[column]?.[
+                                                      value
+                                                    ] ?? 0;
+                                                  return (
+                                                    <div
+                                                      key={value}
+                                                      className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
+                                                    >
+                                                      <Checkbox
+                                                        checked={isChecked}
+                                                        onCheckedChange={() =>
+                                                          toggleFilterValue(
+                                                            column,
+                                                            value,
+                                                          )
+                                                        }
+                                                      />
+                                                      <span className="truncate">
+                                                        {value}
+                                                      </span>
+                                                      <span className="ml-auto text-xs text-muted-foreground">
+                                                        {count}
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                },
+                                              )
+                                            ) : (
+                                              <div className="px-2 py-1 text-xs text-muted-foreground">
+                                                No values
+                                              </div>
+                                            )}
                                           </div>
-                                        ) : null}
-                                      </div>,
-                                      document.body,
-                                    )
+                                          {columnFilters[column]?.size ? (
+                                            <div className="mt-2 flex items-center justify-end">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  clearColumnFilter(column)
+                                                }
+                                                className="text-xs text-muted-foreground hover:text-foreground"
+                                              >
+                                                Clear filter
+                                              </button>
+                                            </div>
+                                          ) : null}
+                                        </div>,
+                                        document.body,
+                                      )
                                     : null}
                                 </div>
                               </div>
@@ -1329,10 +1292,10 @@ export function QueryResultsPanel({
                                     : "") +
                                   " " +
                                   (selectionRange &&
-                                    rowIndex >= selectionRange.rowStart &&
-                                    rowIndex <= selectionRange.rowEnd &&
-                                    colIndex >= selectionRange.colStart &&
-                                    colIndex <= selectionRange.colEnd
+                                  rowIndex >= selectionRange.rowStart &&
+                                  rowIndex <= selectionRange.rowEnd &&
+                                  colIndex >= selectionRange.colStart &&
+                                  colIndex <= selectionRange.colEnd
                                     ? "bg-primary/10"
                                     : "")
                                 }
@@ -1371,7 +1334,8 @@ export function QueryResultsPanel({
                                       </div>
                                     );
                                   }
-                                  const { text: displayText, extra } = getTruncatedCellText(cellInfo.text);
+                                  const { text: displayText, extra } =
+                                    getTruncatedCellText(cellInfo.text);
                                   return (
                                     <div className="flex items-start gap-2">
                                       <span
@@ -1419,7 +1383,7 @@ export function QueryResultsPanel({
               <ContextMenuItem
                 disabled={!hasSelection}
                 onSelect={() => {
-                  void viewJson(getSelectedMatrix()[0][0])
+                  void viewJson(getSelectedMatrix()[0][0]);
                 }}
               >
                 View as JSON
@@ -1459,7 +1423,11 @@ export function QueryResultsPanel({
             </Button>
           </div>
         </div>
-        <DrawerViewJson open={openDrawerJson} onOpenChange={setOpenDrawerJson} json={jsonContent} />
+        <DrawerViewJson
+          open={openDrawerJson}
+          onOpenChange={setOpenDrawerJson}
+          json={jsonContent}
+        />
       </div>
     </div>
   );

@@ -2,7 +2,9 @@
 
 import {
   Activity,
+  Braces,
   Copy,
+  Download,
   FilePlus,
   FileX,
   Info,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Sun,
   X,
+  EyeOff,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -234,6 +237,31 @@ export function AppMenubar() {
               <Activity className="size-4 text-amber-500" />
               Explain Analyze
               <Kbd className="ml-auto text-xs">⌘ + ⇧ + Enter</Kbd>
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>Result</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onSelect={() => dispatchCommand("result-export-csv")}>
+              <Download className="size-4 text-emerald-500" />
+              Export CSV
+              <Kbd className="ml-auto text-xs">⌘ ⇧ C</Kbd>
+            </MenubarItem>
+            <MenubarItem
+              onSelect={() => dispatchCommand("result-export-json")}
+            >
+              <Braces className="size-4 text-sky-500" />
+              Export JSON
+              <Kbd className="ml-auto text-xs">⌘ ⇧ J</Kbd>
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem
+              onSelect={() => dispatchCommand("result-show-all-columns")}
+            >
+              <EyeOff className="size-4 text-slate-500" />
+              Show All Columns
+              <Kbd className="ml-auto text-xs">⌘ ⇧ H</Kbd>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>

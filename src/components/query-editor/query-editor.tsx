@@ -26,6 +26,7 @@ type QueryEditorProps = {
   language: string;
   readonly: boolean;
   onEditorMount?: (getSelectedText: () => string | null) => void; // Thêm dòng này
+  onEditorFocusChange?: (isFocused: boolean) => void;
 
 };
 

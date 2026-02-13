@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { parse } from "pgsql-ast-parser";
 import { QueryResultsPanel } from "@/components/query/query-results-panel";
 import { QueryTabsBar } from "@/components/query/query-tabs-bar";
 import type { QueryResult } from "@/components/query/types";
 import { QueryEditor } from "@/components/query-editor/query-editor";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/resizable";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { toast } from "sonner";
 
 export default function Home() {
   const { setOpen } = useSidebar();
@@ -37,6 +38,7 @@ export default function Home() {
 
   const [executionTime, setExecutionTime] = React.useState<number | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = React.useState(false);
+  const [isEditorFocused, setIsEditorFocused] = React.useState(false);
   // Thêm ref cho getSelectedText
   const getSelectedTextRef = React.useRef<(() => string | null) | null>(null);
 
@@ -193,6 +195,10 @@ export default function Home() {
       ) {
         return;
       }
+      
+      if (!isEditorFocused) {
+        return;
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -327,13 +333,34 @@ export default function Home() {
     let sqlToExecute = activeTab.sql;
     if (getSelectedTextRef.current) {
       const selectedText = getSelectedTextRef.current();
-      if (selectedText && selectedText.trim()) {
+      if (selectedText?.trim()) {
         sqlToExecute = selectedText;
       }
     }
 
     if (!sqlToExecute.trim()) {
       return;
+    }
+
+    if (activeConnection.config.readOnly) {
+      try {
+        const parsed = parse(sqlToExecute);
+        const statements = Array.isArray(parsed)
+          ? parsed
+          : (parsed as { statements?: unknown[] })?.statements ?? [];
+        const hasNonSelect = statements.some(
+          (statement) =>
+            (statement as { type?: string }).type?.toLowerCase() !== "select",
+        );
+
+        if (statements.length === 0 || hasNonSelect) {
+          toast.error("SQL syntax error. Read-only connections only allow SELECT queries.");
+          return;
+        }
+      } catch (error) {
+        toast.error("SQL syntax error. Read-only connections only allow SELECT queries.");
+        return;
+      }
     }
     setIsExecuting(true);
     setQueryResult(null);
@@ -395,7 +422,7 @@ export default function Home() {
     }
 
     if (!sqlToExplain.toUpperCase().startsWith("SELECT")) {
-      alert("EXPLAIN ANALYZE only works with SELECT queries");
+      toast.error("EXPLAIN ANALYZE only works with SELECT queries");
       return;
     }
 
@@ -514,6 +541,10 @@ export default function Home() {
         return;
       }
 
+      if (!isEditorFocused) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -529,7 +560,7 @@ export default function Home() {
       window.removeEventListener("keydown", handleKeyDown, {
         capture: true,
       });
-  }, [executeQuery, explainAnalyzeQuery]);
+  }, [executeQuery, explainAnalyzeQuery, isEditorFocused]);
 
   React.useEffect(() => {
     if (queryResult !== null) {
@@ -564,6 +595,7 @@ export default function Home() {
                   onChange={setQuerySql}
                   documentUri={`inmemory://model/${activeTab.id}.sql`}
                   onEditorMount={handleEditorMount}
+                  onEditorFocusChange={setIsEditorFocused}
                 />
               ) : null}
             </div>

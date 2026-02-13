@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import type { editor as MonacoEditor } from "monaco-editor";
+import { editor as _MonacoEditor } from "monaco-editor";
+import { parse } from "pgsql-ast-parser";
 import { useSidebarStore } from "@/stores/sidebar-store";
-import { read } from "fs";
 
 const KEYWORDS = [
   "ADD",
@@ -99,6 +99,44 @@ const KEYWORDS = [
 
 const DEFAULT_EDITOR_FONT_SIZE = 14;
 const FONT_SIZE_STORAGE_KEY = "usql:editorFontSize";
+const SQL_MARKER_OWNER = "usql:sql-parse";
+const SQL_WARNING_OWNER = "usql:sql-warning";
+const SQL_VALIDATE_DEBOUNCE = 250;
+
+const ALWAYS_TRUE_PATTERNS = [
+  {
+    regex: /\bwhere\s+1\s*=\s*1\b/i,
+    message: "WHERE condition is always true.",
+  },
+  {
+    regex: /\bwhere\s+true\b/i,
+    message: "WHERE condition is always true.",
+  },
+];
+
+const getLineColumnFromIndex = (text: string, index: number) => {
+  const safeIndex = Math.max(0, Math.min(index, text.length));
+  const before = text.slice(0, safeIndex);
+  const lines = before.split("\n");
+  const line = lines.length;
+  const column = (lines[lines.length - 1]?.length ?? 0) + 1;
+  return { line, column };
+};
+
+const findAlwaysTrueCondition = (sql: string) => {
+  for (const pattern of ALWAYS_TRUE_PATTERNS) {
+    const match = pattern.regex.exec(sql);
+    if (match && typeof match.index === "number") {
+      return {
+        index: match.index,
+        length: match[0]?.length ?? 1,
+        message: pattern.message,
+      };
+    }
+  }
+
+  return null;
+};
 
 type QueryEditorClientProps = {
   value: string;
@@ -110,6 +148,7 @@ type QueryEditorClientProps = {
   resolveFontFamily: () => string;
   applyEditorTheme: (monaco: any, isDark: boolean) => void;
   onEditorMount?: (getSelectedText: () => string | null) => void;
+  onEditorFocusChange?: (isFocused: boolean) => void;
 };
 
 type TableSuggestion = {
@@ -140,9 +179,9 @@ const parseAliasMap = (sql: string) => {
   const aliasMap = new Map<string, AliasTableRef>();
   const aliasRegex =
     /\b(from|join|update|into)\s+([a-zA-Z0-9_."-]+)\s+(?:as\s+)?([a-zA-Z0-9_"]+)/gi;
-  let match: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null = aliasRegex.exec(sql);
 
-  while ((match = aliasRegex.exec(sql)) !== null) {
+  while (match !== null) {
     const tableToken = match[2];
     const aliasToken = match[3];
 
@@ -158,6 +197,8 @@ const parseAliasMap = (sql: string) => {
     if (normalizedAlias && tableName) {
       aliasMap.set(normalizedAlias, { tableName, schemaName });
     }
+
+    match = aliasRegex.exec(sql);
   }
 
   return aliasMap;
@@ -172,19 +213,26 @@ export function QueryEditorClient({
   resolveFontFamily,
   applyEditorTheme,
   readonly = false,
-  onEditorMount
+  onEditorMount,
+  onEditorFocusChange
 }: QueryEditorClientProps) {
   const [MonacoEditor, setMonacoEditor] = React.useState<any>(null);
   const [editorFontSize, setEditorFontSize] = React.useState(
     DEFAULT_EDITOR_FONT_SIZE,
   );
-  const editorRef = React.useRef<MonacoEditor.IStandaloneCodeEditor | null>(
+  const [editorReady, setEditorReady] = React.useState(false);
+  const editorRef = React.useRef<_MonacoEditor.IStandaloneCodeEditor | null>(
     null,
   );
+  const editorContainerRef = React.useRef<HTMLDivElement | null>(null);
   const monacoRef = React.useRef<typeof import("monaco-editor") | null>(null);
   const completionDisposableRef = React.useRef<{ dispose: () => void } | null>(
     null,
   );
+  const focusDisposableRef = React.useRef<{ dispose: () => void } | null>(null);
+  const blurDisposableRef = React.useRef<{ dispose: () => void } | null>(null);
+  const inlineErrorZoneIdRef = React.useRef<string | null>(null);
+  const inlineWarningZoneIdRef = React.useRef<string | null>(null);
   const tableSuggestionsRef = React.useRef<TableSuggestion[]>([]);
   const aliasMapRef = React.useRef<Map<string, AliasTableRef>>(new Map());
   const columnSuggestionsRef = React.useRef<ColumnSuggestion[]>([]);
@@ -192,9 +240,6 @@ export function QueryEditorClient({
   const columnsPromiseRef = React.useRef<
     Map<string, Promise<TableColumn[] | undefined>>
   >(new Map());
-  const [sqlParser, setSqlParser] = React.useState<null | {
-    parse: (input: string, options?: { locationTracking?: boolean }) => unknown;
-  }>(null);
   const queryTabs = useSidebarStore((state) => state.queryTabs);
   const activeQueryTabId = useSidebarStore((state) => state.activeQueryTabId);
   const connections = useSidebarStore((state) => state.connections);
@@ -492,77 +537,6 @@ export function QueryEditorClient({
     editorRef.current.updateOptions({ fontSize: editorFontSize });
   }, [editorFontSize]);
 
-  React.useEffect(() => {
-    let active = true;
-
-    import("pgsql-ast-parser")
-      .then((mod) => {
-        if (!active) {
-          return;
-        }
-
-        setSqlParser({ parse: mod.parse });
-      })
-      .catch(() => {
-        if (active) {
-          setSqlParser(null);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    const monaco = monacoRef.current;
-    const model = editorRef.current?.getModel();
-
-    if (!monaco || !model || !sqlParser) {
-      return;
-    }
-
-    const handle = globalThis.setTimeout(() => {
-      const text = value ?? "";
-
-      if (!text.trim()) {
-        monaco.editor.setModelMarkers(model, "sql-lint", []);
-        return;
-      }
-
-      try {
-        sqlParser.parse(text, { locationTracking: true });
-        monaco.editor.setModelMarkers(model, "sql-lint", []);
-      } catch (error) {
-        const details = error as {
-          message?: string;
-          location?: {
-            start?: { line?: number; column?: number };
-            end?: { line?: number; column?: number };
-          };
-        };
-        const startLine = details.location?.start?.line ?? 1;
-        const startColumn = details.location?.start?.column ?? 1;
-        const endLine = details.location?.end?.line ?? startLine;
-        const endColumn = details.location?.end?.column ?? startColumn + 1;
-
-        monaco.editor.setModelMarkers(model, "sql-lint", [
-          {
-            severity: monaco.MarkerSeverity.Error,
-            message: details.message || "SQL syntax error",
-            startLineNumber: startLine,
-            startColumn,
-            endLineNumber: endLine,
-            endColumn,
-          },
-        ]);
-      }
-    }, 300);
-
-    return () => {
-      globalThis.clearTimeout(handle);
-    };
-  }, [sqlParser, value]);
 
   React.useEffect(() => {
     const clampFontSize = (next: number) => Math.min(24, Math.max(10, next));
@@ -610,18 +584,181 @@ export function QueryEditorClient({
     }
   }, [applyEditorTheme, isDark]);
 
-  const [lang, setLang] = React.useState(language);
-
-  React.useEffect(() => {
-    setLang(language);
-  }, []);
-
   const getSelectedText = React.useCallback(() => {
     if (!editorRef.current) return null;
     const selection = editorRef.current.getSelection();
     if (!selection || selection.isEmpty()) return null;
     return editorRef.current.getModel()?.getValueInRange(selection) ?? null;
   }, []);
+
+  React.useEffect(() => {
+    return () => {
+      focusDisposableRef.current?.dispose();
+      blurDisposableRef.current?.dispose();
+    };
+  }, []);
+
+  const validateSql = React.useCallback(() => {
+    if (!monacoRef.current || !editorRef.current) {
+      return;
+    }
+
+    const model = editorRef.current.getModel();
+    if (!model) {
+      return;
+    }
+
+    try {
+      parse(value);
+      monacoRef.current.editor.setModelMarkers(model, SQL_MARKER_OWNER, []);
+      const warning = findAlwaysTrueCondition(value ?? "");
+      if (warning) {
+        const position = getLineColumnFromIndex(value, warning.index);
+        monacoRef.current.editor.setModelMarkers(model, SQL_WARNING_OWNER, [
+          {
+            severity: monacoRef.current.MarkerSeverity.Warning,
+            message: warning.message,
+            startLineNumber: position.line,
+            startColumn: position.column,
+            endLineNumber: position.line,
+            endColumn: position.column + Math.max(warning.length, 1),
+          },
+        ]);
+        const editor = editorRef.current;
+        editor.changeViewZones((accessor) => {
+          if (inlineWarningZoneIdRef.current !== null) {
+            accessor.removeZone(inlineWarningZoneIdRef.current);
+          }
+          const node = document.createElement("div");
+          node.className = "usql-inline-warning-zone";
+          node.textContent = warning.message;
+          inlineWarningZoneIdRef.current = accessor.addZone({
+            afterLineNumber: position.line,
+            heightInPx: 16,
+            domNode: node,
+          });
+        });
+      } else {
+        monacoRef.current.editor.setModelMarkers(model, SQL_WARNING_OWNER, []);
+        if (inlineWarningZoneIdRef.current !== null) {
+          const editor = editorRef.current;
+          editor.changeViewZones((accessor) => {
+            if (inlineWarningZoneIdRef.current) {
+              accessor.removeZone(inlineWarningZoneIdRef.current);
+            }
+          });
+          inlineWarningZoneIdRef.current = null;
+        }
+      }
+
+      if (inlineErrorZoneIdRef.current !== null) {
+        const editor = editorRef.current;
+        editor.changeViewZones((accessor) => {
+          if (inlineErrorZoneIdRef.current) {
+            accessor.removeZone(inlineErrorZoneIdRef.current);
+          }
+        });
+        inlineErrorZoneIdRef.current = null;
+      }
+    } catch (error) {
+      monacoRef.current.editor.setModelMarkers(model, SQL_WARNING_OWNER, []);
+      if (inlineWarningZoneIdRef.current !== null) {
+        const editor = editorRef.current;
+        editor.changeViewZones((accessor) => {
+          if (inlineWarningZoneIdRef.current) {
+            accessor.removeZone(inlineWarningZoneIdRef.current);
+          }
+        });
+        inlineWarningZoneIdRef.current = null;
+      }
+      const details = error as {
+        message?: string;
+        location?: {
+          start?: { line: number; column: number };
+          end?: { line: number; column: number };
+        };
+      };
+      const message = details.message ?? "Invalid SQL syntax";
+      const messageMatch = /line\s+(\d+)\s+col\s+(\d+)/i.exec(message);
+      const messageLine = messageMatch ? Number(messageMatch[1]) : undefined;
+      const messageColumn = messageMatch ? Number(messageMatch[2]) : undefined;
+      const startLine = details.location?.start?.line ?? messageLine ?? 1;
+      const startColumn = Math.max(
+        details.location?.start?.column ?? messageColumn ?? 1,
+        1,
+      );
+      const endLine = details.location?.end?.line ?? startLine;
+      const endColumn = Math.max(
+        details.location?.end?.column ?? startColumn + 1,
+        startColumn + 1,
+      );
+
+      monacoRef.current.editor.setModelMarkers(model, SQL_MARKER_OWNER, [
+        {
+          severity: monacoRef.current.MarkerSeverity.Error,
+          message,
+          startLineNumber: startLine,
+          startColumn,
+          endLineNumber: endLine,
+          endColumn,
+        },
+      ]);
+
+      const editor = editorRef.current;
+      editor.changeViewZones((accessor) => {
+        if (inlineErrorZoneIdRef.current !== null) {
+          accessor.removeZone(inlineErrorZoneIdRef.current);
+        }
+        const node = document.createElement("div");
+        node.className = "usql-inline-error-zone";
+        node.textContent = message;
+        inlineErrorZoneIdRef.current = accessor.addZone({
+          afterLineNumber: startLine,
+          heightInPx: 16,
+          domNode: node,
+        });
+      });
+    }
+  }, [value]);
+
+  React.useEffect(() => {
+    if (!editorReady) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      validateSql();
+    }, SQL_VALIDATE_DEBOUNCE);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editorReady, validateSql]);
+
+  const blurEditor = React.useCallback(() => {
+    const editorNode = editorRef.current?.getDomNode() as HTMLElement | null;
+    if (!editorNode) {
+      return;
+    }
+    const active = document.activeElement;
+    if (active && editorNode.contains(active)) {
+      (active as HTMLElement).blur();
+      return;
+    }
+    const textarea = editorNode.querySelector("textarea");
+    textarea?.blur();
+  }, []);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (editorContainerRef.current?.contains(target)) {
+        return;
+      }
+      blurEditor();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [blurEditor]);
 
   if (!MonacoEditor) {
     return (
@@ -632,250 +769,286 @@ export function QueryEditorClient({
   }
 
   return (
-    <MonacoEditor
-      height="100%"
-      defaultLanguage={language}
-      theme={isDark ? "usql-dark" : "usql-light"}
-      path={documentUri}
-      value={value}
-      onChange={(nextValue: string) => onChange(nextValue ?? "")}
-      onMount={(editor: any, monaco: any) => {
-        editorRef.current = editor;
-        monacoRef.current = monaco;
-
-        applyEditorTheme(monaco, isDark);
-
-        if (onEditorMount) {
-          onEditorMount(() => {
-            const selection = editor.getSelection();
-            if (!selection || selection.isEmpty()) return null;
-            return editor.getModel()?.getValueInRange(selection) ?? null;
-          });
+    <div ref={editorContainerRef} className="h-full w-full">
+      <style>{`
+        .monaco-editor .usql-inline-error-zone {
+          color: #dc2626;
+          opacity: 0.9;
+          font-size: 12px;
+          line-height: 18px;
+          white-space: pre-wrap;
+          font-family: ${resolveFontFamily()};
         }
+        .monaco-editor .usql-inline-warning-zone {
+          color: #b45309;
+          opacity: 0.9;
+          font-size: 12px;
+          line-height: 18px;
+          white-space: pre-wrap;
+          font-family: ${resolveFontFamily()};
+        }
+      `}</style>
+      <MonacoEditor
+        height="100%"
+        defaultLanguage={language}
+        theme={isDark ? "usql-dark" : "usql-light"}
+        path={documentUri}
+        value={value}
+        onChange={(nextValue: string) => onChange(nextValue ?? "")}
+        onMount={(editor: any, monaco: any) => {
+          editorRef.current = editor;
+          monacoRef.current = monaco;
+          setEditorReady(true);
 
-        // Configure SQL language
-        monaco.languages.setLanguageConfiguration(language, {
-          comments: {
-            lineComment: "--",
-            blockComment: ["/*", "*/"],
-          },
-          brackets: [
-            ["(", ")"],
-            ["{", "}"],
-            ["[", "]"],
-          ],
-          autoClosingPairs: [
-            { open: "(", close: ")" },
-            { open: "{", close: "}" },
-            { open: "[", close: "]" },
-            { open: "'", close: "'" },
-            { open: '"', close: '"' },
-            { open: "`", close: "`" },
-          ],
-        });
+          applyEditorTheme(monaco, isDark);
 
-        editor.updateOptions({
+          if (onEditorMount) {
+            onEditorMount(getSelectedText);
+          }
+
+          // Configure SQL language
+          monaco.languages.setLanguageConfiguration(language, {
+            comments: {
+              lineComment: "--",
+              blockComment: ["/*", "*/"],
+            },
+            brackets: [
+              ["(", ")"],
+              ["{", "}"],
+              ["[", "]"],
+            ],
+            autoClosingPairs: [
+              { open: "(", close: ")" },
+              { open: "{", close: "}" },
+              { open: "[", close: "]" },
+              { open: "'", close: "'" },
+              { open: '"', close: '"' },
+              { open: "`", close: "`" },
+            ],
+          });
+
+          editor.updateOptions({
+            fontFamily: resolveFontFamily(),
+            tabSize: 2,
+            insertSpaces: true,
+            renderLineHighlight: "none",
+            contextmenu: false,
+            padding: { top: 6 },
+            hover: { enabled: false },
+          });
+
+          if (completionDisposableRef.current) {
+            completionDisposableRef.current.dispose();
+          }
+          if (focusDisposableRef.current) {
+            focusDisposableRef.current.dispose();
+          }
+          if (blurDisposableRef.current) {
+            blurDisposableRef.current.dispose();
+          }
+
+          focusDisposableRef.current = editor.onDidFocusEditorText(() => {
+            onEditorFocusChange?.(true);
+          });
+          blurDisposableRef.current = editor.onDidBlurEditorText(() => {
+            onEditorFocusChange?.(false);
+          });
+
+          completionDisposableRef.current =
+            monaco.languages.registerCompletionItemProvider(language, {
+              triggerCharacters: ["."],
+              provideCompletionItems: async (model, position) => {
+                const wordInfo = model.getWordUntilPosition(position);
+                const lineUntilPos = model.getValueInRange(
+                  new monaco.Range(
+                    position.lineNumber,
+                    1,
+                    position.lineNumber,
+                    position.column,
+                  ),
+                );
+                const aliasMatch = /([a-zA-Z_][\w$"]*)\.([\w$"]*)$/.exec(
+                  lineUntilPos,
+                );
+                const aliasName = aliasMatch
+                  ? normalizeIdentifier(aliasMatch[1])
+                  : undefined;
+                const aliasColumnPrefix = aliasMatch
+                  ? normalizeIdentifier(aliasMatch[2])
+                  : "";
+                const tokenMatch = /([a-zA-Z_][\w$"]*)$/.exec(lineUntilPos);
+                const tokenPrefix = tokenMatch
+                  ? normalizeIdentifier(tokenMatch[1])
+                  : "";
+                aliasMapRef.current = parseAliasMap(model.getValue());
+                const range = new monaco.Range(
+                  position.lineNumber,
+                  wordInfo.startColumn,
+                  position.lineNumber,
+                  wordInfo.endColumn,
+                );
+                const keywordPrefix = tokenPrefix.toUpperCase();
+                const tablePrefix = tokenPrefix.toLowerCase();
+                const columnPrefix = (
+                  aliasName ? aliasColumnPrefix : tokenPrefix
+                ).toLowerCase();
+
+                const aliasSuggestions = Array.from(aliasMapRef.current.keys())
+                  .filter((alias) => alias.toLowerCase().startsWith(tablePrefix))
+                  .map((alias) => ({
+                    label: alias,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    insertText: alias,
+                    range,
+                  }));
+
+                const keywordSuggestions = KEYWORDS.filter((keyword) =>
+                  keyword.startsWith(keywordPrefix),
+                ).map((keyword) => ({
+                  label: keyword,
+                  kind: monaco.languages.CompletionItemKind.Keyword,
+                  insertText: keyword,
+                  range,
+                }));
+
+                const tableSuggestions = tableSuggestionsRef.current
+                  .filter((table) =>
+                    table.insertText.toLowerCase().startsWith(tablePrefix),
+                  )
+                  .map((table) => ({
+                    label: table.label,
+                    kind: monaco.languages.CompletionItemKind.Class,
+                    insertText: table.insertText,
+                    range,
+                  }));
+
+                let columnSuggestions: any[] = [];
+
+                if (aliasName && activeConnection) {
+                  const aliasRef = aliasMapRef.current.get(aliasName);
+                  const tableName = aliasRef?.tableName ?? aliasName;
+                  const schemaName = resolveSchemaName(
+                    tableName,
+                    aliasRef?.schemaName,
+                  );
+                  const schema = schemaName
+                    ? activeConnection.schemas.find(
+                      (item) => item.name === schemaName,
+                    )
+                    : undefined;
+                  let columns = schema?.tableColumns?.[tableName] || [];
+
+                  if (columns.length === 0) {
+                    const loadedColumns = await loadColumnsForTable(
+                      tableName,
+                      aliasRef?.schemaName,
+                    );
+                    if (loadedColumns) {
+                      columns = loadedColumns;
+                    }
+                  }
+
+                  columnSuggestions = columns
+                    .filter((column) =>
+                      column.name.toLowerCase().startsWith(columnPrefix),
+                    )
+                    .map((column) => ({
+                      label: column.name,
+                      kind: monaco.languages.CompletionItemKind.Field,
+                      insertText: column.name,
+                      detail: tableName,
+                      range,
+                    }));
+                }
+
+                if (columnSuggestions.length === 0) {
+                  columnSuggestions = columnSuggestionsRef.current
+                    .filter((column) =>
+                      column.insertText.toLowerCase().startsWith(columnPrefix),
+                    )
+                    .map((column) => ({
+                      label: column.label,
+                      kind: monaco.languages.CompletionItemKind.Field,
+                      insertText: column.insertText,
+                      detail: column.detail,
+                      range,
+                    }));
+                }
+
+                const orderedSuggestions = [
+                  ...columnSuggestions,
+                  ...tableSuggestions,
+                  ...aliasSuggestions,
+                  ...keywordSuggestions,
+                ];
+
+                const withSortText = orderedSuggestions.map((item, index) => {
+                  let rank = "9";
+
+                  if (item.kind === monaco.languages.CompletionItemKind.Field) {
+                    rank = "0";
+                  } else if (
+                    item.kind === monaco.languages.CompletionItemKind.Class
+                  ) {
+                    rank = "1";
+                  } else if (
+                    item.kind === monaco.languages.CompletionItemKind.Variable
+                  ) {
+                    rank = "2";
+                  } else if (
+                    item.kind === monaco.languages.CompletionItemKind.Keyword
+                  ) {
+                    rank = "3";
+                  }
+
+                  return {
+                    ...item,
+                    sortText: `${rank}-${String(index).padStart(4, "0")}`,
+                  };
+                });
+                const uniqueBySortText = Array.from(
+                  new Map(
+                    withSortText.map((item) => [item.sortText, item]),
+                  ).values(),
+                );
+                return {
+                  suggestions: uniqueBySortText,
+                };
+              },
+            });
+
+          editor.focus();
+        }}
+        options={{
+          fontSize: editorFontSize,
           fontFamily: resolveFontFamily(),
           tabSize: 2,
           insertSpaces: true,
           renderLineHighlight: "none",
           contextmenu: false,
-        });
-
-        if (completionDisposableRef.current) {
-          completionDisposableRef.current.dispose();
-        }
-
-        completionDisposableRef.current =
-          monaco.languages.registerCompletionItemProvider(language, {
-            triggerCharacters: ["."],
-            provideCompletionItems: async (model, position) => {
-              const wordInfo = model.getWordUntilPosition(position);
-              const lineUntilPos = model.getValueInRange(
-                new monaco.Range(
-                  position.lineNumber,
-                  1,
-                  position.lineNumber,
-                  position.column,
-                ),
-              );
-              const aliasMatch = /([a-zA-Z_][\w$"]*)\.([\w$"]*)$/.exec(
-                lineUntilPos,
-              );
-              const aliasName = aliasMatch
-                ? normalizeIdentifier(aliasMatch[1])
-                : undefined;
-              const aliasColumnPrefix = aliasMatch
-                ? normalizeIdentifier(aliasMatch[2])
-                : "";
-              const tokenMatch = /([a-zA-Z_][\w$"]*)$/.exec(lineUntilPos);
-              const tokenPrefix = tokenMatch
-                ? normalizeIdentifier(tokenMatch[1])
-                : "";
-              aliasMapRef.current = parseAliasMap(model.getValue());
-              const range = new monaco.Range(
-                position.lineNumber,
-                wordInfo.startColumn,
-                position.lineNumber,
-                wordInfo.endColumn,
-              );
-              const keywordPrefix = tokenPrefix.toUpperCase();
-              const tablePrefix = tokenPrefix.toLowerCase();
-              const columnPrefix = (
-                aliasName ? aliasColumnPrefix : tokenPrefix
-              ).toLowerCase();
-
-              const aliasSuggestions = Array.from(aliasMapRef.current.keys())
-                .filter((alias) => alias.toLowerCase().startsWith(tablePrefix))
-                .map((alias) => ({
-                  label: alias,
-                  kind: monaco.languages.CompletionItemKind.Variable,
-                  insertText: alias,
-                  range,
-                }));
-
-              const keywordSuggestions = KEYWORDS.filter((keyword) =>
-                keyword.startsWith(keywordPrefix),
-              ).map((keyword) => ({
-                label: keyword,
-                kind: monaco.languages.CompletionItemKind.Keyword,
-                insertText: keyword,
-                range,
-              }));
-
-              const tableSuggestions = tableSuggestionsRef.current
-                .filter((table) =>
-                  table.insertText.toLowerCase().startsWith(tablePrefix),
-                )
-                .map((table) => ({
-                  label: table.label,
-                  kind: monaco.languages.CompletionItemKind.Class,
-                  insertText: table.insertText,
-                  range,
-                }));
-
-              let columnSuggestions: any[] = [];
-
-              if (aliasName && activeConnection) {
-                const aliasRef = aliasMapRef.current.get(aliasName);
-                const tableName = aliasRef?.tableName ?? aliasName;
-                const schemaName = resolveSchemaName(
-                  tableName,
-                  aliasRef?.schemaName,
-                );
-                const schema = schemaName
-                  ? activeConnection.schemas.find(
-                    (item) => item.name === schemaName,
-                  )
-                  : undefined;
-                let columns = schema?.tableColumns?.[tableName] || [];
-
-                if (columns.length === 0) {
-                  const loadedColumns = await loadColumnsForTable(
-                    tableName,
-                    aliasRef?.schemaName,
-                  );
-                  if (loadedColumns) {
-                    columns = loadedColumns;
-                  }
-                }
-
-                columnSuggestions = columns
-                  .filter((column) =>
-                    column.name.toLowerCase().startsWith(columnPrefix),
-                  )
-                  .map((column) => ({
-                    label: column.name,
-                    kind: monaco.languages.CompletionItemKind.Field,
-                    insertText: column.name,
-                    detail: tableName,
-                    range,
-                  }));
-              }
-
-              if (columnSuggestions.length === 0) {
-                columnSuggestions = columnSuggestionsRef.current
-                  .filter((column) =>
-                    column.insertText.toLowerCase().startsWith(columnPrefix),
-                  )
-                  .map((column) => ({
-                    label: column.label,
-                    kind: monaco.languages.CompletionItemKind.Field,
-                    insertText: column.insertText,
-                    detail: column.detail,
-                    range,
-                  }));
-              }
-
-              const orderedSuggestions = [
-                ...columnSuggestions,
-                ...tableSuggestions,
-                ...aliasSuggestions,
-                ...keywordSuggestions,
-              ];
-
-              const withSortText = orderedSuggestions.map((item, index) => {
-                let rank = "9";
-
-                if (item.kind === monaco.languages.CompletionItemKind.Field) {
-                  rank = "0";
-                } else if (
-                  item.kind === monaco.languages.CompletionItemKind.Class
-                ) {
-                  rank = "1";
-                } else if (
-                  item.kind === monaco.languages.CompletionItemKind.Variable
-                ) {
-                  rank = "2";
-                } else if (
-                  item.kind === monaco.languages.CompletionItemKind.Keyword
-                ) {
-                  rank = "3";
-                }
-
-                return {
-                  ...item,
-                  sortText: `${rank}-${String(index).padStart(4, "0")}`,
-                };
-              });
-              const uniqueBySortText = Array.from(
-                new Map(withSortText.map((item) => [item.sortText, item])).values(),
-              )
-              return {
-                suggestions: uniqueBySortText,
-              };
-            },
-          });
-
-        editor.focus();
-      }}
-      options={{
-        fontSize: editorFontSize,
-        fontFamily: resolveFontFamily(),
-        tabSize: 2,
-        insertSpaces: true,
-        renderLineHighlight: "none",
-        contextmenu: false,
-        minimap: { enabled: false },
-        automaticLayout: true,
-        readOnly: readonly || false,
-        scrollbar: {
-          vertical: "auto",
-          horizontal: "auto",
-        },
-        suggest: {
-          filterGraceful: false,
-        },
-        quickSuggestions: {
-          other: true,
-          comments: false,
-          strings: false,
-        },
-        suggestOnTriggerCharacters: true,
-        acceptSuggestionOnCommitCharacter: true,
-        acceptSuggestionOnEnter: "on",
-        tabCompletion: "on",
-      }}
-    />
+          padding: { top: 10 },
+          hover: { enabled: false },
+          minimap: { enabled: false },
+          automaticLayout: true,
+          readOnly: readonly || false,
+          scrollbar: {
+            vertical: "auto",
+            horizontal: "auto",
+          },
+          suggest: {
+            filterGraceful: false,
+          },
+          quickSuggestions: {
+            other: true,
+            comments: false,
+            strings: false,
+          },
+          suggestOnTriggerCharacters: true,
+          acceptSuggestionOnCommitCharacter: true,
+          acceptSuggestionOnEnter: "on",
+          tabCompletion: "on",
+        }}
+      />
+    </div>
   );
 }

@@ -9,7 +9,7 @@ const {
   columnHandlers,
   indexHandlers,
   queryHandlers,
-} = require("./db/test-handlers.cjs");
+} = require("./db/handlers.cjs");
 const isMac = process.platform === "darwin";
 
 function getContentType(filePath) {

@@ -3,31 +3,19 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppMenubar } from "@/components/app-menubar";
 import {
-  SidebarContent,
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { useSidebarStore } from "@/stores/sidebar-store";
 
 export default function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const selectedConnectionId = useSidebarStore(
-    (state) => state.selectedConnectionId
-  );
-  const selectedSchema = useSidebarStore((state) => state.selectedSchema);
-  const selectedTable = useSidebarStore((state) => state.selectedTable);
-  const connections = useSidebarStore((state) => state.connections);
-
-  const selectedConnection = connections.find(
-    (connection) => connection.config.id === selectedConnectionId
-  );
 
   return (
      <SidebarProvider
-      defaultOpen={true}
+      defaultOpen={false}
       style={
         {
           "--sidebar-width": "30%",
@@ -35,7 +23,12 @@ export default function AppLayout({
         } as React.CSSProperties
       }
     >
-      {children}
+      
+      <SidebarInset>
+        <AppMenubar />
+        <main className="flex flex-1 flex-col gap-4 p-4">{children}</main>
+      </SidebarInset>
+      <AppSidebar />
     </SidebarProvider>
   );
 }

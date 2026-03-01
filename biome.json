@@ -1,0 +1,75 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.next",
+      "!dist",
+      "!build",
+      "!components/ui/*.ts",
+      "!components/*.tsx",
+      "!components/ui/*.tsx"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "includes": [
+      "**",
+      "!test/**",
+      "!components/ui/*.ts",
+      "!components/*.tsx",
+      "!components/ui/*.tsx"
+    ],
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "noNoninteractiveElementInteractions": "off",
+        "noStaticElementInteractions": "off",
+        "useFocusableInteractive": "off",
+        "useSemanticElements": "off",
+        "useButtonType": "off",
+        "useKeyWithClickEvents": "off"
+      },
+      "suspicious": {
+        "noUnknownAtRules": "off",
+        "useIterableCallbackReturn": "off",
+        "noExplicitAny": "off",
+        "noDocumentCookie": "off",
+        "noAssignInExpressions": "off",
+        "noArrayIndexKey": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off",
+        "noInvalidUseBeforeDeclaration": "off",
+        "useHookAtTopLevel": "off"
+      },
+      "style": {
+        "useImportType": "off"
+      }
+    },
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  }
+}

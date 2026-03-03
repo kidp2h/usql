@@ -7,7 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "./ui/sheet";
-import { useSidebarStore } from "@/stores/sidebar-store";
+import { useSidebarStore as useSidebarStoreV2 } from "@/stores/sidebar-store";
 
 export type SheetEditConnectionProps = {
   editingConnection: {
@@ -26,9 +26,9 @@ export function SheetEditConnection({
   editingConnection,
   setEditingConnection,
 }: SheetEditConnectionProps) {
-  const connections = useSidebarStore((state) => state.connections);
+  const connections = useSidebarStoreV2((state) => state.connections);
 
-  const updateConnection = useSidebarStore((state) => state.updateConnection);
+  const updateConnection = useSidebarStoreV2((state) => state.updateConnection);
   const handleUpdateConnection = React.useCallback(
     async (values: ConnectionFormValues) => {
       if (!editingConnection) {
@@ -38,8 +38,8 @@ export function SheetEditConnection({
       const normalizedName = values.name.trim().toLowerCase();
       const hasDuplicate = connections.some(
         (connection) =>
-          connection.config.id !== editingConnection.id &&
-          connection.config.name.trim().toLowerCase() === normalizedName,
+          connection.id !== editingConnection.id &&
+          connection.name.trim().toLowerCase() === normalizedName,
       );
 
       if (hasDuplicate) {
@@ -57,17 +57,21 @@ export function SheetEditConnection({
       const result = await electron.testConnection(values);
 
       if (result.ok) {
-        updateConnection(editingConnection.id, {
-          name: values.name,
-          dbType: values.dbType,
-          host: values.host,
-          port: values.port,
-          database: values.database,
-          username: values.username,
-          password: values.password,
-          ssl: values.ssl,
-          readOnly: values.readOnly,
-        });
+        const connection = connections.find((c) => c.id === editingConnection.id);
+        if (connection) {
+          updateConnection({
+            ...connection,
+            name: values.name,
+            dbType: values.dbType,
+            host: values.host,
+            port: values.port,
+            database: values.database,
+            username: values.username,
+            password: values.password,
+            ssl: values.ssl,
+            readOnly: values.readOnly,
+          });
+        }
         setEditingConnection(null);
         return { ok: true, message: "Connection updated." };
       }

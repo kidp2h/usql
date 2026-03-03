@@ -40,7 +40,6 @@ export function useKeyboard({
       if (stopPropagation) {
         event.stopPropagation();
       }
-      console.log("Keyboard event", event);
       onKeyDown(event);
     }
   });

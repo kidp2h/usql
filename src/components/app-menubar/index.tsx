@@ -108,6 +108,24 @@ export function AppMenubar() {
     onKeyDown: () => dispatchCommand("format"),
   });
 
+  // Export CSV
+  useKeyboard({
+    key: "c",
+    ctrlKey: true,
+    metaKey: true,
+    shiftKey: true,
+    onKeyDown: () => dispatchCommand("result-export-csv"),
+  });
+
+  // Export JSON
+  useKeyboard({
+    key: "j",
+    ctrlKey: true,
+    metaKey: true,
+    shiftKey: true,
+    onKeyDown: () => dispatchCommand("result-export-json"),
+  });
+
   return (
     <div className="border-b flex flex-col">
       <Menubar className="border-0 border-b">

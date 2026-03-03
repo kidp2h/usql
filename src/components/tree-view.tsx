@@ -7,7 +7,7 @@ import { cva } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const treeVariants = cva(
-    'group hover:before:opacity-100 before:absolute rounded-sm before:left-0 px-2 before:w-full before:opacity-0 before:bg-accent/70 before:h-[2rem] before:-z-10'
+    'relative group hover:bg-accent/50 rounded-sm px-2 transition-colors'
 )
 
 const selectedTreeVariants = cva(
@@ -32,6 +32,8 @@ interface TreeDataItem {
     disabled?: boolean
     isLoading?: boolean
     className?: string
+    count?: number
+    tableCount?: number
 }
 
 type TreeRenderItemParams = {
@@ -237,7 +239,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
 )
 TreeItem.displayName = 'TreeItem'
 
-const TreeNode = ({
+const TreeNode = React.memo(({
     item,
     handleSelectChange,
     expandedItemIds,
@@ -350,7 +352,7 @@ const TreeNode = ({
                 </AccordionTrigger>
                 <AccordionContent className="ml-4 pl-1 border-l">
                     <TreeItem
-                        data={item.children ? item.children : item}
+                        data={item.children || []}
                         selectedItemId={selectedItemId}
                         handleSelectChange={handleSelectChange}
                         expandedItemIds={expandedItemIds}
@@ -366,9 +368,10 @@ const TreeNode = ({
             </AccordionPrimitive.Item>
         </AccordionPrimitive.Root>
     )
-}
+});
+TreeNode.displayName = 'TreeNode'
 
-const TreeLeaf = React.forwardRef<
+const TreeLeaf = React.memo(React.forwardRef<
     HTMLDivElement,
     React.HTMLAttributes<HTMLDivElement> & {
         item: TreeDataItem
@@ -432,7 +435,7 @@ const TreeLeaf = React.forwardRef<
             <div
                 ref={ref}
                 className={cn(
-                    'ml-5 flex text-left items-center py-2 cursor-pointer before:right-1',
+                    'ml-5 flex text-left items-center py-2 cursor-pointer',
                     treeVariants(),
                     className,
                     isSelected && selectedTreeVariants(),
@@ -482,7 +485,7 @@ const TreeLeaf = React.forwardRef<
             </div>
         )
     }
-)
+));
 TreeLeaf.displayName = 'TreeLeaf'
 
 const AccordionTrigger = React.forwardRef<

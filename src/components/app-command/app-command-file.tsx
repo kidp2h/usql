@@ -1,10 +1,11 @@
 
 import { FolderOpen, Save, FilePlus, Layers, SquareX, FileX, X, Sparkles, Settings2, PanelLeft, ZoomIn, ZoomOut, RotateCcw, Sun, Moon } from "lucide-react";
-import { CommandGroup, CommandShortcut } from "@/components/ui/command";
+import { CommandGroup } from "@/components/ui/command";
 import { AppCommandItem as CommandItem } from "./app-command-item";
 import { useGlobalEvents } from "@/hooks/use-global-events";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
+import { Shortcut } from "../ui/kbd";
 
 interface FileCommandGroupProps {
   setOpen: (open: boolean) => void;
@@ -20,56 +21,52 @@ export function FileCommandGroup({ setOpen, setShowSettingsDialog }: FileCommand
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("open-file"); }}>
         <FolderOpen className="size-4 text-sky-500 mr-2" />
         Open File
-        <CommandShortcut className="text-md">⌘ + O</CommandShortcut>
+        <Shortcut shortcut="⌘ + O" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("save"); }}>
         <Save className="size-4 text-emerald-500 mr-2" />
         Save
-        <CommandShortcut className="text-md">⌘ + S</CommandShortcut>
+        <Shortcut shortcut="⌘ + S" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("save-as"); }}>
         <FilePlus className="size-4 text-emerald-400 mr-2" />
         Save As
-        <CommandShortcut className="text-md">⌘ + ⇧ + S</CommandShortcut>
+        <Shortcut shortcut="⌘ + ⇧ + S" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("close-all-tabs"); }}>
         <Layers className="size-4 text-orange-500 mr-2" />
         Close All Tabs
-        <CommandShortcut className="text-md">⌘ + ⇧ + W</CommandShortcut>
+        <Shortcut shortcut="⌘ + ⇧ + W" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("format"); }}>
         <Sparkles className="size-4 text-violet-500 mr-2" />
         Format
-        <CommandShortcut className="text-md">⌘ + L</CommandShortcut>
-      </CommandItem>
-      <CommandItem setOpen={setOpen} onSelect={() => { setShowSettingsDialog(true); }}>
-        <Settings2 className="size-4 text-purple-500 mr-2" />
-        Settings
+        <Shortcut shortcut="⌘ + L" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchCommand("quit"); }}>
         <X className="size-4 text-red-500 mr-2" />
         Quit
-        <CommandShortcut className="text-md">⌘ + Q</CommandShortcut>
+        <Shortcut shortcut="⌘ + Q" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { toggleSidebar(); }}>
         <PanelLeft className="size-4 text-sky-500 mr-2" />
         Toggle Sidebar
-        <CommandShortcut className="text-md">⌘ + B</CommandShortcut>
+        <Shortcut shortcut="⌘ + B" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchAppearance("zoom-in"); }}>
         <ZoomIn className="size-4 text-emerald-500 mr-2" />
         Increase Font Size
-        <CommandShortcut className="text-md">⌘ + +</CommandShortcut>
+        <Shortcut shortcut="⌘ + Mouse Up" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchAppearance("zoom-out"); }}>
         <ZoomOut className="size-4 text-orange-500 mr-2" />
         Decrease Font Size
-        <CommandShortcut className="text-md">⌘ + -</CommandShortcut>
+        <Shortcut shortcut="⌘ + Mouse Down" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { dispatchAppearance("zoom-reset"); }}>
         <RotateCcw className="size-4 text-slate-500 mr-2" />
         Reset Font Size
-        <CommandShortcut className="text-md">⌘ + 0</CommandShortcut>
+        <Shortcut shortcut="⌘ + 0" />
       </CommandItem>
       <CommandItem setOpen={setOpen} onSelect={() => { toggleTheme(); }}>
         {theme === "dark" ? (
@@ -78,7 +75,7 @@ export function FileCommandGroup({ setOpen, setShowSettingsDialog }: FileCommand
           <Moon className="size-4 text-indigo-400 mr-2" />
         )}
         {theme === "dark" ? "Light Mode" : "Dark Mode"}
-        <CommandShortcut className="text-md">⌘ + ⇧ + D</CommandShortcut>
+        <Shortcut shortcut="⌘ + ⇧ + D" />
       </CommandItem>
     </CommandGroup>
   );

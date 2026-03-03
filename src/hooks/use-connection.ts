@@ -1,4 +1,4 @@
-import { useSidebarStore } from "@/stores/v2/sidebar-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
 import { TreeDataItem } from "@/components/tree-view";
 import * as React from "react";
 

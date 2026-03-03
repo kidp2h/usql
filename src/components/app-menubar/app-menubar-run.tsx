@@ -1,5 +1,5 @@
 import { Play, Activity } from "lucide-react";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, Shortcut } from "@/components/ui/kbd";
 import { MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from "@/components/ui/menubar";
 import { useGlobalEvents } from "@/hooks/use-global-events";
 
@@ -12,12 +12,12 @@ export const AppMenubarRun = () => {
         <MenubarItem onSelect={() => dispatchCommand("execute")}>
           <Play className="size-4 text-emerald-500" />
           Execute
-          <Kbd className="ml-auto text-xs font-bold">⌘ + Enter</Kbd>
+          <Shortcut shortcut="⌘ + Enter" />
         </MenubarItem>
         <MenubarItem onSelect={() => dispatchCommand("explain")}>
           <Activity className="size-4 text-amber-500" />
           Explain Analyze
-          <Kbd className="ml-auto text-xs font-bold">⌘ + ⇧ + Enter</Kbd>
+          <Shortcut shortcut="⌘ + ⇧ + Enter" />
         </MenubarItem>
       </MenubarContent>
     </MenubarMenu>

@@ -15,38 +15,59 @@ export function ViewCommentsCommandGroup({ setOpen }: BaseCommandGroupProps) {
   const selectedConnectionId = useSidebarStore(
     (state) => state.selectedConnectionId,
   );
-  const selectedSchema = useSidebarStore((state) => state.selectedSchema);
 
   const activeConnection = React.useMemo(() => {
-    return connections.find((c) => c.config.id === selectedConnectionId);
+    return connections.find((c) => c.id === selectedConnectionId);
   }, [connections, selectedConnectionId]);
 
-  const activeSchema = React.useMemo(() => {
-    if (!activeConnection || !selectedSchema) return undefined;
-    return activeConnection.schemas.find((s) => s.name === selectedSchema.name);
-  }, [activeConnection, selectedSchema]);
+  const allTables = React.useMemo(() => {
+    if (!activeConnection?.children) return [];
 
-  if (!activeConnection || !activeSchema || activeSchema.tables.length === 0) {
+    const tables: { id: string; name: string; schemaName?: string }[] = [];
+
+    // Helper to traverse and find table nodes
+    activeConnection.children.forEach(node => {
+      // Is it a direct table node?
+      if (node.id.includes(':table:')) {
+        tables.push({ id: node.id, name: node.name });
+      }
+      // Is it a schema node?
+      else if (node.id.includes(':schema:')) {
+        const schemaName = node.name;
+        node.children?.forEach(subNode => {
+          if (subNode.id.includes(':table:')) {
+            tables.push({ id: subNode.id, name: subNode.name, schemaName });
+          }
+        });
+      }
+    });
+
+    return tables;
+  }, [activeConnection]);
+
+  if (!activeConnection || allTables.length === 0) {
     return null;
   }
 
   return (
-    <CommandGroup heading={`View Comments (${activeSchema.name})`}>
-      {activeSchema.tables.map((table) => (
+    <CommandGroup heading={`View Table Comments (${activeConnection.name})`}>
+      {allTables.map((table) => (
         <CommandItem
-          key={table}
+          key={table.id}
           setOpen={setOpen}
           onSelect={() => {
             dispatchViewComments(
-              activeConnection.config.id,
-              activeConnection.config.name,
-              activeSchema.name,
-              table,
+              activeConnection.id,
+              activeConnection.name,
+              table.schemaName || "public",
+              table.name,
             );
           }}
         >
           <MessageSquareText className="size-4 text-emerald-500 mr-2" />
-          View table comments for {table}
+          <span className="flex-1 truncate">
+            View comments for {table.schemaName ? `${table.schemaName}.` : ""}{table.name}
+          </span>
         </CommandItem>
       ))}
     </CommandGroup>

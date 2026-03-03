@@ -1,6 +1,6 @@
 "use client";
 
-import { AppSidebar } from "@/components/v2/app-sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 import { AppMenubar } from "@/components/app-menubar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import React from "react";

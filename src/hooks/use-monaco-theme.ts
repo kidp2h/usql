@@ -29,6 +29,19 @@ export function useMonacoTheme(): MonacoThemeHook {
           token: "string.sql",
           foreground: "ffd700",
         },
+        // JSON specific
+        {
+          token: "string.key.json",
+          foreground: "b392f0", // Purple
+        },
+        {
+          token: "string.value.json",
+          foreground: "7bcc72", // Green
+        },
+        {
+          token: "number.json",
+          foreground: "79b8ff", // Blue
+        },
         {
           background: "24292e",
           token: "",
@@ -378,6 +391,19 @@ export function useMonacoTheme(): MonacoThemeHook {
         {
           token: "string.sql",
           foreground: "99da92",
+        },
+        // JSON specific
+        {
+          token: "string.key.json",
+          foreground: "6f42c1", // Purple
+        },
+        {
+          token: "string.value.json",
+          foreground: "22863a", // Green
+        },
+        {
+          token: "number.json",
+          foreground: "005cc5", // Blue
         },
         {
           foreground: "6a737d",

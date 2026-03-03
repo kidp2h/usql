@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { QueryResultsPanel } from "@/components/query/v2/query-results-panel";
-import { QueryTabsBar } from "@/components/query/v2/query-tabs-bar";
+import { QueryResultsPanel } from "@/components/query/query-results-panel";
+import { QueryTabsBar } from "@/components/query/query-tabs-bar";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -12,7 +12,9 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { useTabStore } from "@/stores/tab-store";
 import { Alpha } from "@/components/alpha";
 import { useQuery } from "@/hooks/use-query";
-import { QueryEditor } from "@/components/query-editor/v2/query-editor";
+import { QueryEditor } from "@/components/query/query-editor";
+
+import { DMLConfirmationDialog } from "@/components/query/dml-confirmation-dialog";
 
 export default function Home() {
   const { setOpen } = useSidebar();
@@ -29,23 +31,25 @@ export default function Home() {
     handleOpenFileChange,
     copyText,
     getSelectedTextRef,
+    executeQuery,
+    dmlConfirmation,
+    setDmlConfirmation,
   } = useQuery({ setOpen, isEditorFocused });
 
 
   return (
-
     <section className="flex h-full min-h-105 min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".sql"
+        multiple
+        onChange={handleOpenFileChange}
+        className="hidden"
+      />
       {
         activeTab ? (
           <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".sql"
-              multiple
-              onChange={handleOpenFileChange}
-              className="hidden"
-            />
             <QueryTabsBar />
             <ResizablePanelGroup orientation="vertical" className="flex-1 min-w-0">
               <ResizablePanel defaultSize={50} minSize={15}>
@@ -71,6 +75,13 @@ export default function Home() {
                 />
               </ResizablePanel>) : null}
             </ResizablePanelGroup>
+            <DMLConfirmationDialog
+              open={dmlConfirmation.open}
+              onOpenChange={(open) => setDmlConfirmation((prev) => ({ ...prev, open }))}
+              estimatedRows={dmlConfirmation.estimatedRows}
+              sql={dmlConfirmation.sql}
+              onConfirm={() => executeQuery(dmlConfirmation.sql, true)}
+            />
           </>
         ) : <Alpha />
       }

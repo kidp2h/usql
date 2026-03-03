@@ -1,8 +1,5 @@
-import Image from "next/image"
-import { Kbd } from "./ui/kbd"
-import { Separator } from "./ui/separator"
-import { fa } from "zod/locales"
-import { CommandIcon, File, FolderOpen, Palette, PanelLeft, PanelLeftDashed } from "lucide-react"
+import { CommandIcon, File, FilePlus, FolderOpen, Palette, PanelLeft } from "lucide-react"
+import { Kbd, Shortcut } from "./ui/kbd"
 
 
 export function Alpha() {
@@ -38,21 +35,21 @@ export function Alpha() {
                             <FolderOpen className="size-4 mr-1 text-sky-500" />
                             <span className="text-muted-foreground text-xs font-medium ">Open file</span>
                         </div>
-                        <Kbd className="ml-2 font-medium">⌘ + O</Kbd>
+                        <Shortcut className="ml-auto" shortcut="⌘ + O" />
                     </div>
                     <div className="flex justify-between flex-row">
                         <div className="flex flex-row gap-x-1 items-center justify-center">
-                            <File className="size-4 mr-1 text-purple-500" />
+                            <FilePlus className="size-4 mr-1 text-purple-500" />
                             <span className="text-muted-foreground text-xs font-medium ">New query</span>
                         </div>
-                        <Kbd className="ml-2 font-medium">⌘ + N</Kbd>
+                        <Shortcut className="ml-auto" shortcut="⌘ + N" />
                     </div>
                     <div className="flex justify-between flex-row">
                         <div className="flex flex-row gap-x-1 items-center justify-center">
                             <PanelLeft className="size-4 mr-1 text-blue-500" />
                             <span className="text-muted-foreground text-xs font-medium ">Toggle sidebar</span>
                         </div>
-                        <Kbd className="ml-2 font-medium">⌘ + B</Kbd>
+                        <Shortcut className="ml-auto" shortcut="⌘ + B" />
 
                     </div>
                     <div className="flex justify-between flex-row">
@@ -60,14 +57,14 @@ export function Alpha() {
                             <Palette className="size-4 mr-1 text-green-500" />
                             <span className="text-muted-foreground text-xs font-medium ">Switch Dark/Light mode</span>
                         </div>
-                        <Kbd className="ml-2 font-medium">⌘ + ⇧ + D</Kbd>
+                        <Shortcut className="ml-auto" shortcut="⌘ + ⇧ + D" />
                     </div>
                     <div className=" flex justify-between flex-row">
                         <div className="flex flex-row gap-x-1 items-center justify-center">
                             <CommandIcon className="size-4 mr-1 text-red-500" />
                             <span className="text-muted-foreground text-xs font-medium">Command Palette</span>
                         </div>
-                        <Kbd className="ml-2 font-medium">⌘ + ⇧ + P</Kbd>
+                        <Shortcut className="ml-auto" shortcut="⌘ + ⇧ + P" />
                     </div>
                 </div>
             </div>

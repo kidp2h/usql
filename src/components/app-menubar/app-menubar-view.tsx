@@ -1,5 +1,5 @@
 import { Settings2, Palette, ZoomIn, ZoomOut, RotateCcw, Sun, Moon, PanelLeft, AppWindow, Minus, Maximize, X } from "lucide-react";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, Shortcut } from "@/components/ui/kbd";
 import {
   MenubarContent,
   MenubarItem,
@@ -43,10 +43,6 @@ export const AppMenubarView = () => {
     <MenubarMenu>
       <MenubarTrigger>View</MenubarTrigger>
       <MenubarContent>
-        <MenubarItem onSelect={() => dispatchCommand("open-settings")}>
-          <Settings2 className="size-4 text-purple-500" />
-          Settings
-        </MenubarItem>
         <MenubarSub>
           <MenubarSubTrigger className="justify-between gap-2">
             <Palette className="size-4 text-fuchsia-500" />
@@ -56,18 +52,18 @@ export const AppMenubarView = () => {
             <MenubarItem onSelect={() => dispatchAppearance("zoom-in")}>
               <ZoomIn className="size-4 text-emerald-500" />
               Increase Font Size
-              <Kbd className="ml-auto text-xs font-bold">⌘ + +</Kbd>
+              <Shortcut shortcut="⌘ + Mouse Up" />
             </MenubarItem>
             <MenubarItem onSelect={() => dispatchAppearance("zoom-out")}>
               <ZoomOut className="size-4 text-orange-500" />
               Decrease Font Size
-              <Kbd className="ml-auto text-xs font-bold">⌘ + -</Kbd>
+              <Shortcut shortcut="⌘ + Mouse Down" />
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onSelect={() => dispatchAppearance("zoom-reset")}>
               <RotateCcw className="size-4 text-slate-500" />
               Reset Font Size
-              <Kbd className="ml-auto text-xs font-bold">⌘ + 0</Kbd>
+              <Shortcut shortcut="⌘ + 0" />
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onSelect={toggleTheme} className="justify-between">
@@ -77,37 +73,15 @@ export const AppMenubarView = () => {
                 <Moon className="size-4 text-indigo-400" />
               )}
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
-              <Kbd className="ml-auto text-xs font-bold">⌘ + ⇧ + D</Kbd>
+              <Shortcut shortcut="⌘ + ⇧ + D" />
             </MenubarItem>
           </MenubarSubContent>
         </MenubarSub>
         <MenubarItem onSelect={toggleSidebar}>
           <PanelLeft className="size-4 text-sky-500" />
           Toggle Sidebar
-          <Kbd className="ml-auto text-xs font-bold">⌘ + B</Kbd>
+          <Shortcut shortcut="⌘ + B" />
         </MenubarItem>
-        <MenubarSeparator />
-        <MenubarSub>
-          <MenubarSubTrigger className="justify-between gap-2">
-            <AppWindow className="size-4 text-emerald-500" />
-            Window
-          </MenubarSubTrigger>
-          <MenubarSubContent>
-            <MenubarItem onSelect={handleWindowMinimize}>
-              <Minus className="size-4 text-slate-500" />
-              Minimize
-            </MenubarItem>
-            <MenubarItem onSelect={handleWindowMaximize}>
-              <Maximize className="size-4 text-slate-500" />
-              Maximize
-            </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem onSelect={handleWindowClose}>
-              <X className="size-4 text-red-500" />
-              Close
-            </MenubarItem>
-          </MenubarSubContent>
-        </MenubarSub>
       </MenubarContent>
     </MenubarMenu>
   );

@@ -1,12 +1,16 @@
+import * as React from "react";
+import { Command, Option, ArrowUp, ArrowDown } from "lucide-react";
+import { MdKeyboardReturn } from "react-icons/md";
 import { cn } from "@/lib/utils";
+import { BsShift } from "react-icons/bs";
 
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd
       data-slot="kbd"
       className={cn(
-        "bg-muted text-muted-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded-sm px-1 font-sans text-xs font-medium select-none",
-        "[&_svg:not([class*='size-'])]:size-3",
+        "bg-muted text-muted-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded-sm px-1.5 font-sans text-[11px] font-medium select-none border border-black/10 dark:border-white/10 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.05)]",
+        "[[data-slot=shortcut]_svg]:!size-3 [&_svg]:size-3",
         "[[data-slot=tooltip-content]_&]:bg-background/20 [[data-slot=tooltip-content]_&]:text-background dark:[[data-slot=tooltip-content]_&]:bg-background/10",
         className,
       )}
@@ -17,7 +21,7 @@ function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
 
 function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <kbd
+    <div
       data-slot="kbd-group"
       className={cn("inline-flex items-center gap-1", className)}
       {...props}
@@ -25,4 +29,53 @@ function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Kbd, KbdGroup };
+function Shortcut({ shortcut, className }: { shortcut: string; className?: string }) {
+  // Split by " + " or just space
+  const parts = shortcut.split(/\s*\+\s*/);
+
+  return (
+    <KbdGroup className={cn("ml-auto pl-8", className)} data-slot="shortcut">
+      {parts.map((part, i) => {
+        const symbol = part.trim();
+        let content: React.ReactNode = symbol;
+
+        switch (symbol.toUpperCase()) {
+          case "⌘":
+          case "CMD":
+            content = <Command className="!size-3" />;
+            break;
+          case "⌥":
+          case "ALT":
+          case "OPT":
+            content = <Option className="!size-3" />;
+            break;
+          case "⇧":
+          case "SHIFT":
+            content = <BsShift className="!size-3" />;
+            break;
+          case "CTRL":
+            content = "Ctrl";
+            break;
+          case "MOUSE UP":
+            content = <ArrowUp className="!size-3" />;
+            break;
+          case "MOUSE DOWN":
+            content = <ArrowDown className="!size-3" />;
+            break;
+          case "ENTER":
+            content = <MdKeyboardReturn className="!size-3" />;
+            break;
+        }
+
+        return (
+          <React.Fragment key={i}>
+            <Kbd className="font-mono">{content}</Kbd>
+            {i < parts.length - 1 && <span className="text-[10px] text-muted-foreground/50">+</span>}
+          </React.Fragment>
+        );
+      })}
+    </KbdGroup>
+  );
+}
+
+export { Kbd, KbdGroup, Shortcut };

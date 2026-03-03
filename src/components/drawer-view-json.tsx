@@ -5,7 +5,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { QueryEditor } from "./query-editor/query-editor";
+import { QueryEditor } from "./query/query-editor";
 
 type DrawerViewJsonProps = {
   open: boolean;
@@ -28,11 +28,10 @@ export function DrawerViewJson({
 
         <div className="no-scrollbar overflow-y-auto px-4 h-300">
           <QueryEditor
-            readonly={true}
-            language="json"
+            readOnly={true}
             value={json}
             onChange={() => { }}
-            documentUri={`inmemory://model/view.sql`}
+            language="json"
           />
         </div>
       </DrawerContent>

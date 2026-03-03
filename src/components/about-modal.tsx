@@ -36,7 +36,7 @@ export function AboutModal({ open, onOpenChange }: AboutModalProps) {
                             <Target size={15} />
                             <span className="ml-2">Version</span>
                         </div>
-                        <span className="font-medium">v1.0.0</span>
+                        <span className="font-medium">v0.1.0</span>
                     </div>
                     <div className="flex items-center justify-between">
                         <div className="text-muted-foreground flex flex-row items-center">

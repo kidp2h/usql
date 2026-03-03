@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
-import { useSidebarStore } from "@/stores/v2/sidebar-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
 
 export function SidebarConnectionDrawer() {
   const addConnection = useSidebarStore((state) => state.addConnection);
@@ -59,112 +59,67 @@ export function SidebarConnectionDrawer() {
         addConnection(newConnection);
         setOpen(false);
 
-        // Fetch schemas, tables, and columns in the background
-        if (window.electron?.getSchemas) {
-          window.electron.getSchemas(newConnection).then(async (res) => {
-            if (res.ok && res.schemas) {
-              // Fetch tables and columns for each schema
-              const schemaNodes = await Promise.all(
-                res.schemas.map(async (schemaName: string) => {
-                  const schemaNode: any = {
-                    id: `${id}:schema:${schemaName}`,
-                    name: schemaName,
-                    children: [],
-                  };
-
-                  if (window.electron?.getTables) {
-                    const tablesRes = await window.electron.getTables(newConnection, schemaName);
-                    if (tablesRes.ok && tablesRes.tables) {
-                      schemaNode.children = await Promise.all(
-                        tablesRes.tables.map(async (tableName: string) => {
-                          const tableNode: any = {
-                            id: `${id}:schema:${schemaName}:table:${tableName}`,
-                            name: tableName,
-                            children: [],
-                          };
-
-                          if (window.electron?.getColumns) {
-                            const columnsRes = await window.electron.getColumns(
-                              newConnection,
-                              schemaName,
-                              tableName
-                            );
-                            if (columnsRes.ok && columnsRes.columns) {
-                              tableNode.children = [
-                                {
-                                  id: `${id}:schema:${schemaName}:table:${tableName}:columns`,
-                                  name: "Columns",
-                                  children: columnsRes.columns.map((col: any) => ({
-                                    id: `${id}:schema:${schemaName}:table:${tableName}:column:${col.name}`,
-                                    name: col.name,
-                                    isPrimary: col.isPrimary,
-                                    isForeign: col.isForeign,
-                                    dataType: col.dataType,
-                                  })),
-                                },
-                                {
-                                  id: `${id}:schema:${schemaName}:table:${tableName}:indexes`,
-                                  name: "Indexes",
-                                  children: [], // Add indexes later if needed
-                                },
-                              ];
-                            }
-                          }
-                          return tableNode;
-                        })
-                      );
-                    }
-                  }
-
-                  return schemaNode;
-                })
-              );
+        // Fetch full metadata (schemas, tables, and columns) in the background
+        if (window.electron?.getFullMetadata) {
+          window.electron.getFullMetadata(newConnection).then((res: any) => {
+            if (res.ok && res.metadata) {
+              const schemaNodes = res.metadata.map((s: any) => ({
+                id: `${id}:schema:${s.name}`,
+                name: s.name,
+                tableCount: s.tableCount,
+                children: s.tables.map((t: any) => ({
+                  id: `${id}:schema:${s.name}:table:${t.name}`,
+                  name: t.name,
+                  size: t.size,
+                  children: [
+                    {
+                      id: `${id}:schema:${s.name}:table:${t.name}:columns`,
+                      name: "Columns",
+                      count: t.columnCount,
+                      children: t.columns.map((col: any) => ({
+                        id: `${id}:schema:${s.name}:table:${t.name}:column:${col.name}`,
+                        name: col.name,
+                        isPrimary: col.isPrimary,
+                        isForeign: col.isForeign,
+                        dataType: col.dataType,
+                        references: col.references,
+                      })),
+                    },
+                    {
+                      id: `${id}:schema:${s.name}:table:${t.name}:indexes`,
+                      name: "Indexes",
+                      count: t.indexCount,
+                      children: t.indexes.map((idxName: any) => ({
+                        id: `${id}:schema:${s.name}:table:${t.name}:index:${idxName}`,
+                        name: idxName,
+                      })),
+                    },
+                  ],
+                })),
+              }));
 
               useSidebarStore.getState().updateConnection({
                 ...newConnection,
                 isLoading: false,
-                children:
-                  schemaNodes.length > 0
-                    ? schemaNodes
-                    : [
-                      {
-                        id: `${id}:empty`,
-                        name: "No schemas found",
-                        disabled: true,
-                      },
-                    ],
+                children: schemaNodes.length > 0 ? schemaNodes : [
+                  { id: `${id}:empty`, name: "No schemas found", disabled: true }
+                ],
               });
             } else {
               useSidebarStore.getState().updateConnection({
                 ...newConnection,
                 isLoading: false,
-                children: [
-                  {
-                    id: `${id}:error`,
-                    name: res.message || "Failed to load",
-                    disabled: true,
-                    className: "text-destructive",
-                  },
-                ],
+                children: [{ id: `${id}:error`, name: res.message || "Failed to load", disabled: true, className: "text-destructive" }],
               });
             }
           }).catch(() => {
             useSidebarStore.getState().updateConnection({
               ...newConnection,
               isLoading: false,
-              children: [
-                {
-                  id: `${id}:error`,
-                  name: "Failed to load",
-                  disabled: true,
-                  className: "text-destructive",
-                },
-              ],
+              children: [{ id: `${id}:error`, name: "Failed to load", disabled: true, className: "text-destructive" }],
             });
           });
         }
-
-        return { ok: true, message: "Connection saved." };
       }
 
       return { ok: false, message: result.message || "Connection failed." };

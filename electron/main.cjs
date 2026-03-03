@@ -1,15 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const {
-  testHandlers,
-  schemaHandlers,
-  tableHandlers,
-  columnHandlers,
-  indexHandlers,
-  queryHandlers,
-} = require("./db/handlers.cjs");
+const { registerWindowHandlers } = require("./handlers/window.cjs");
+const { registerDbHandlers } = require("./handlers/db.cjs");
+const { registerFsHandlers } = require("./handlers/fs.cjs");
+const { registerExportHandlers } = require("./handlers/export.cjs");
+const { setupAutoUpdater } = require("./autoupdater.cjs");
+
 const isMac = process.platform === "darwin";
 
 function getContentType(filePath) {
@@ -90,6 +88,7 @@ function createWindow(startUrl) {
     minWidth: 1366,
     minHeight: 768,
     maxWidth: 1920,
+    icon: path.join(__dirname, "../assets/icon.png"),
     maxHeight: 1080,
     frame: false,
     autoHideMenuBar: true,
@@ -123,184 +122,19 @@ function createWindow(startUrl) {
   return win;
 }
 
-ipcMain.handle("confirm-close", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) {
-    return { ok: false };
-  }
-
-  win.__allowClose = true;
-  win.__pendingClose = false;
-  win.close();
-  return { ok: true };
-});
-
-ipcMain.handle("cancel-close", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) {
-    return { ok: false };
-  }
-
-  win.__allowClose = false;
-  win.__pendingClose = false;
-  return { ok: true };
-});
-
-ipcMain.handle("window-minimize", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    win.minimize();
-  }
-  return { ok: true };
-});
-
-ipcMain.handle("window-maximize", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
-    }
-  }
-  return { ok: true };
-});
-
-ipcMain.handle("window-close", (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    win.__allowClose = true;
-    win.close();
-  }
-  return { ok: true };
-});
-
-// Database handlers
-ipcMain.handle("test-connection", async (_event, payload) => {
-  if (!payload || !payload.dbType) {
-    return { ok: false, message: "Missing database type" };
-  }
-
-  const handler = testHandlers[payload.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload);
-});
-
-ipcMain.handle("get-schemas", async (_event, payload) => {
-  if (!payload || !payload.dbType) {
-    return { ok: false, message: "Missing database type" };
-  }
-
-  const handler = schemaHandlers[payload.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload);
-});
-
-ipcMain.handle("get-tables", async (_event, payload) => {
-  if (!payload || !payload.connection || !payload.schema) {
-    return { ok: false, message: "Missing table request payload" };
-  }
-
-  const handler = tableHandlers[payload.connection.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload.connection, payload.schema);
-});
-
-ipcMain.handle("get-columns", async (_event, payload) => {
-  if (!payload || !payload.connection || !payload.schema || !payload.table) {
-    return { ok: false, message: "Missing column request payload" };
-  }
-
-  const handler = columnHandlers[payload.connection.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload.connection, payload.schema, payload.table);
-});
-
-ipcMain.handle("get-indexes", async (_event, payload) => {
-  if (!payload || !payload.connection || !payload.schema || !payload.table) {
-    return { ok: false, message: "Missing index request payload" };
-  }
-
-  const handler = indexHandlers[payload.connection.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload.connection, payload.schema, payload.table);
-});
-
-ipcMain.handle("execute-query", async (_event, payload) => {
-  if (!payload || !payload.dbType || !payload.sql) {
-    return { ok: false, message: "Missing query payload" };
-  }
-
-  const handler = queryHandlers[payload.dbType];
-  if (!handler) {
-    return { ok: false, message: "Unsupported database type" };
-  }
-
-  return handler(payload, payload.sql);
-});
-
-ipcMain.handle("save-query", async (_event, payload) => {
-  if (!payload || typeof payload.content !== "string") {
-    return { ok: false, message: "Missing query content" };
-  }
-
-  if (payload.filePath && !payload.forceDialog) {
-    try {
-      await fs.promises.writeFile(payload.filePath, payload.content, "utf8");
-      return { ok: true, filePath: payload.filePath };
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error ? error.message : "Save failed",
-      };
-    }
-  }
-
-  const result = await dialog.showSaveDialog({
-    title: "Save SQL",
-    defaultPath: payload.suggestedName || payload.filePath || "query.sql",
-    filters: [
-      { name: "SQL", extensions: ["sql"] },
-      { name: "All Files", extensions: ["*"] },
-    ],
-  });
-
-  if (result.canceled || !result.filePath) {
-    return { ok: true, canceled: true };
-  }
-
-  try {
-    await fs.promises.writeFile(result.filePath, payload.content, "utf8");
-    return { ok: true, filePath: result.filePath };
-  } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : "Save failed",
-    };
-  }
-});
+// Initialize Handlers
+registerWindowHandlers(ipcMain);
+registerDbHandlers(ipcMain);
+registerFsHandlers(ipcMain);
+registerExportHandlers(ipcMain);
 
 // App lifecycle
 app.whenReady().then(async () => {
   const devUrl = process.env.ELECTRON_START_URL;
   const { url } = devUrl ? { url: devUrl } : await startStaticServer();
 
-  createWindow(url);
+  const mainWindow = createWindow(url);
+  setupAutoUpdater(mainWindow);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -323,3 +157,4 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (reason, _promise) => {
   console.error("[Main] Unhandled rejection:", reason);
 });
+

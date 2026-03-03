@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "./ui/sheet";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { useSidebarStore as useSidebarStoreV2 } from "@/stores/v2/sidebar-store";
 
 export type SheetEditConnectionProps = {
   editingConnection: {
@@ -27,8 +28,10 @@ export function SheetEditConnection({
   setEditingConnection,
 }: SheetEditConnectionProps) {
   const connections = useSidebarStore((state) => state.connections);
+  const connectionsV2 = useSidebarStoreV2((state) => state.connections);
 
   const updateConnection = useSidebarStore((state) => state.updateConnection);
+  const updateConnectionV2 = useSidebarStoreV2((state) => state.updateConnection);
   const handleUpdateConnection = React.useCallback(
     async (values: ConnectionFormValues) => {
       if (!editingConnection) {
@@ -36,13 +39,18 @@ export function SheetEditConnection({
       }
 
       const normalizedName = values.name.trim().toLowerCase();
-      const hasDuplicate = connections.some(
+      const hasDuplicateV1 = connections.some(
         (connection) =>
           connection.config.id !== editingConnection.id &&
           connection.config.name.trim().toLowerCase() === normalizedName,
       );
+      const hasDuplicateV2 = connectionsV2.some(
+        (connection) =>
+          connection.id !== editingConnection.id &&
+          connection.name.trim().toLowerCase() === normalizedName,
+      );
 
-      if (hasDuplicate) {
+      if (hasDuplicateV1 || hasDuplicateV2) {
         return { ok: false, message: "Database name already exists." };
       }
 
@@ -57,24 +65,40 @@ export function SheetEditConnection({
       const result = await electron.testConnection(values);
 
       if (result.ok) {
-        updateConnection(editingConnection.id, {
-          name: values.name,
-          dbType: values.dbType,
-          host: values.host,
-          port: values.port,
-          database: values.database,
-          username: values.username,
-          password: values.password,
-          ssl: values.ssl,
-          readOnly: values.readOnly,
-        });
+        const connectionV2 = connectionsV2.find((c) => c.id === editingConnection.id);
+        if (connectionV2) {
+          updateConnectionV2({
+            ...connectionV2,
+            name: values.name,
+            dbType: values.dbType,
+            host: values.host,
+            port: values.port,
+            database: values.database,
+            username: values.username,
+            password: values.password,
+            ssl: values.ssl,
+            readOnly: values.readOnly,
+          });
+        } else {
+          updateConnection(editingConnection.id, {
+            name: values.name,
+            dbType: values.dbType,
+            host: values.host,
+            port: values.port,
+            database: values.database,
+            username: values.username,
+            password: values.password,
+            ssl: values.ssl,
+            readOnly: values.readOnly,
+          });
+        }
         setEditingConnection(null);
         return { ok: true, message: "Connection updated." };
       }
 
       return { ok: false, message: result.message || "Connection failed." };
     },
-    [editingConnection, connections, updateConnection],
+    [editingConnection, connections, updateConnection, connectionsV2, updateConnectionV2],
   );
   return (
     <Sheet

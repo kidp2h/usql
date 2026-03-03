@@ -32,7 +32,7 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
 
     const monaco = monacoRef.current;
     const provider = monaco.languages.registerCompletionItemProvider('sql', {
-      triggerCharacters: [' ', '.', '\n', '*', ',', ')'],
+      triggerCharacters: [' ', '.', ','],
       provideCompletionItems(model: any, position: any) {
         const word = model.getWordUntilPosition(position);
         const range = {
@@ -169,6 +169,21 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
       options={{
         fontFamily: resolveFontFamily(),
         wordBasedSuggestions: 'off',
+        contextmenu: false,
+        minimap: {
+          enabled: false
+        },
+        overviewRulerBorder: false,
+        lineDecorationsWidth: 0,
+        hideCursorInOverviewRuler: true,
+        scrollbar: {
+          vertical: 'hidden',
+          horizontal: 'hidden',
+        },
+        cursorBlinking: 'expand',
+        mouseWheelZoom: true,
+        smoothScrolling: true,
+        cursorSmoothCaretAnimation: 'on',
         quickSuggestions: { other: true, comments: false, strings: false },
       }}
     />

@@ -99,3 +99,11 @@ export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt
     }
   };
 };
+
+export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
+  let timer: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}

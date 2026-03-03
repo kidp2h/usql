@@ -25,7 +25,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, Shortcut } from "@/components/ui/kbd";
 import { DrawerViewJson } from "../drawer-view-json";
 import { toast } from "sonner";
 import { Badge } from "../ui/badge";
@@ -1417,14 +1417,14 @@ export const QueryResultsPanel = React.memo(function QueryResultsPanel({
                 }
               >
                 Copy with separator (,)
-                <Kbd className="ml-auto text-xs">⌘ ⇧ M</Kbd>
+                <Shortcut shortcut="⌘ ⇧ M" />
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={!hasSelection}
                 onSelect={() => copySelection("\t")}
               >
                 Copy
-                <Kbd className="ml-auto text-xs">⌘ + C</Kbd>
+                <Shortcut shortcut="⌘ + C" />
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={!hasSelection}
@@ -1433,14 +1433,14 @@ export const QueryResultsPanel = React.memo(function QueryResultsPanel({
                 }}
               >
                 View as JSON
-                <Kbd className="ml-auto text-xs">⌘ + ⌥ + J</Kbd>
+                <Shortcut shortcut="⌘ + ⌥ + J" />
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={!hasSelection}
                 onSelect={handleCopyInStatement}
               >
                 Copy as IN statement
-                <Kbd className="ml-auto text-xs">⌘ ⇧ I</Kbd>
+                <Shortcut shortcut="⌘ ⇧ I" />
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>

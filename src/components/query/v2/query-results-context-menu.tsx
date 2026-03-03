@@ -7,6 +7,7 @@ import {
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
 import { Copy, FileJson } from "lucide-react";
+import { Shortcut } from "@/components/ui/kbd";
 
 interface QueryResultsContextMenuProps {
   children: React.ReactNode;
@@ -24,16 +25,16 @@ export function QueryResultsContextMenu({
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-80">
         <ContextMenuItem onClick={onCopy}>
           <Copy className="mr-2 size-4" />
           <span>Copy</span>
-          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+          <ContextMenuShortcut><Shortcut shortcut="⌘C" /></ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem onClick={onCopyInStatement}>
           <FileJson className="mr-2 size-4" />
-          <span>Copy as IN statement</span>
-          <ContextMenuShortcut>⌘ + ⇧ + I</ContextMenuShortcut>
+          <span>Copy IN statement</span>
+          <ContextMenuShortcut><Shortcut shortcut="⌘ + ⇧ + I" /></ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

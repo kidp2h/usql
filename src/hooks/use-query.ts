@@ -31,6 +31,11 @@ export function useQuery({
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [isExplainMode, setIsExplainMode] = React.useState(false);
   const [executionTime, setExecutionTime] = React.useState<number | null>(null);
+  const [dmlConfirmation, setDmlConfirmation] = React.useState<{
+    open: boolean;
+    sql: string;
+    estimatedRows: number | null;
+  }>({ open: false, sql: "", estimatedRows: null });
 
   const getSelectedTextRef = React.useRef<
     (() => { text: string; range?: any } | null) | null
@@ -219,8 +224,8 @@ export function useQuery({
     [openSqlTab],
   );
 
-  const executeQuery = React.useCallback(async () => {
-    if (!activeTab || !activeConnection || !activeTab.sql.trim()) {
+  const executeQuery = React.useCallback(async (overrideSql?: string, skipConfirm = false) => {
+    if (!activeTab || !activeConnection || !(overrideSql || activeTab.sql).trim()) {
       return;
     }
 
@@ -229,8 +234,8 @@ export function useQuery({
       return;
     }
 
-    let sqlToExecute = activeTab.sql;
-    if (getSelectedTextRef.current) {
+    let sqlToExecute = overrideSql || activeTab.sql;
+    if (!overrideSql && getSelectedTextRef.current) {
       const selectedText = getSelectedTextRef.current();
       if (selectedText?.text?.trim()) {
         sqlToExecute = selectedText.text;
@@ -281,6 +286,168 @@ export function useQuery({
         }
       }
     }
+
+    // Dangerous query check (UPDATE/DELETE/DROP/TRUNCATE/ALTER)
+    const dmlRegex = /^\s*(UPDATE|DELETE|DROP|TRUNCATE|ALTER)\b/i;
+    let isDangerous = dmlRegex.test(sqlToExecute);
+
+    // Try AST parsing for better accuracy if possible
+    try {
+      const parsed = parse(sqlToExecute);
+      const statements = Array.isArray(parsed) ? parsed : (parsed as any).statements ?? [];
+      const hasDangerous = statements.some((stmt: any) =>
+        ["update", "delete", "drop", "truncate", "alter"].includes(stmt.type?.toLowerCase())
+      );
+      if (hasDangerous) isDangerous = true;
+    } catch (e) {
+      // Ignore parser errors, rely on regex fallback
+    }
+
+    if (isDangerous && !skipConfirm) {
+      // Start with a loading state for the dialog if needed, but for now we'll just block
+      try {
+        let estimatedRows: number | null = null;
+
+        // Try to get exact count for simple UPDATE/DELETE
+        const tryGetExactCount = async (sql: string): Promise<number | null> => {
+          try {
+            const parsed = parse(sql);
+            const stmt = (Array.isArray(parsed) ? parsed[0] : (parsed as any).statements?.[0]) as any;
+
+            if (!stmt) return null;
+
+            let tableName = "";
+            let whereClause = "";
+
+            if (stmt.type === "delete") {
+              tableName = stmt.from?.name;
+              // Extract WHERE clause if it exists
+              // Note: pgsql-ast-parser doesn't easily stringify back to SQL from AST,
+              // so we do a simple regex extraction for typical simple cases
+              const whereMatch = sql.match(/WHERE\s+([\s\S]+)$/i);
+              whereClause = whereMatch ? `WHERE ${whereMatch[1]}` : "";
+            } else if (stmt.type === "update") {
+              tableName = stmt.table?.name;
+              const whereMatch = sql.match(/WHERE\s+([\s\S]+)$/i);
+              whereClause = whereMatch ? `WHERE ${whereMatch[1]}` : "";
+            }
+
+            if (tableName) {
+              const countSql = `SELECT COUNT(*) FROM ${tableName} ${whereClause.replace(/;$/, "")}`;
+              const countResult = await window.electron!.executeQuery({
+                ...activeConnection,
+                port: String(activeConnection.port),
+                sql: countSql,
+              });
+
+              if (countResult.ok && countResult.rows?.[0]) {
+                const count = Object.values(countResult.rows[0])[0];
+                return Number(count);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to get exact count:", e);
+          }
+          return null;
+        };
+
+        const exactCount = await tryGetExactCount(sqlToExecute);
+        if (exactCount !== null) {
+          estimatedRows = exactCount;
+        } else {
+          // Fallback to EXPLAIN
+          const explainSql = `EXPLAIN (FORMAT JSON) ${sqlToExecute}`;
+          const result = await window.electron!.executeQuery({
+            ...activeConnection,
+            port: String(activeConnection.port),
+            sql: explainSql,
+          });
+
+          if (result.ok && result.rows?.[0]) {
+            try {
+              const firstRow = result.rows[0] as any;
+              const planKey = Object.keys(firstRow).find(key => key.toUpperCase() === "QUERY PLAN" || key.toUpperCase() === "PLAN");
+              let planData = planKey ? firstRow[planKey] : firstRow;
+
+              if (typeof planData === "string") {
+                try {
+                  planData = JSON.parse(planData);
+                } catch (e) { }
+              }
+
+              const planObj = Array.isArray(planData) ? planData[0] : planData;
+
+              // Helper to recursively find rows (skipping 0 to find the actual estimate in DML sub-plans)
+              const findRows = (obj: any): number | null => {
+                if (!obj || typeof obj !== "object") return null;
+
+                // Direct match for PostgreSQL JSON format
+                if (obj["Plan Rows"] !== undefined && obj["Plan Rows"] > 0) return obj["Plan Rows"];
+                if (obj["Rows"] !== undefined && obj["Rows"] > 0) return obj["Rows"];
+
+                // Search in "Plan" property if it exists (common in PG)
+                if (obj.Plan) {
+                  const rows = findRows(obj.Plan);
+                  if (rows !== null) return rows;
+                }
+
+                // Search in sub-plans (Plans array)
+                if (Array.isArray(obj.Plans)) {
+                  for (const subPlan of obj.Plans) {
+                    const rows = findRows(subPlan);
+                    if (rows !== null) return rows;
+                  }
+                }
+
+                // Generic recursive search for any key containing "Rows"
+                for (const key in obj) {
+                  // Skip recursive search if we already looked at Plan or Plans
+                  if (key === "Plan" || key === "Plans") continue;
+
+                  if (key.includes("Rows") && typeof obj[key] === "number" && obj[key] > 0) {
+                    return obj[key];
+                  }
+                  if (typeof obj[key] === "object") {
+                    const rows = findRows(obj[key]);
+                    if (rows !== null) return rows;
+                  }
+                }
+
+                // Fallback to 0 if we specifically found a 0 value earlier but no non-zero values exist
+                if (obj["Plan Rows"] === 0 || obj["Rows"] === 0) return 0;
+
+                return null;
+              };
+
+              estimatedRows = findRows(planObj);
+              // Final fallback to 0 if the recursive search found nothing but we had a valid result
+              if (estimatedRows === null && planObj) {
+                estimatedRows = 0;
+              }
+            } catch (e) {
+              console.error("Failed to parse EXPLAIN rows:", e);
+            }
+          }
+        }
+
+        setDmlConfirmation({
+          open: true,
+          sql: sqlToExecute,
+          estimatedRows,
+        });
+        return;
+      } catch (err) {
+        console.error("DML estimation failed:", err);
+        // Fallback: still show confirmation even if count fails
+        setDmlConfirmation({
+          open: true,
+          sql: sqlToExecute,
+          estimatedRows: null,
+        });
+        return;
+      }
+    }
+
     setIsExecuting(true);
     setQueryResult(null);
     setExecutionTime(null);
@@ -315,10 +482,23 @@ export function useQuery({
       const rows = result.rows ?? [];
       const columns = rows[0] ? Object.keys(rows[0]) : [];
 
+      let message: string | undefined;
+      if (rows.length === 0) {
+        const sqlTrimmed = sqlToExecute.trim().toUpperCase();
+        if (
+          sqlTrimmed.startsWith("UPDATE") ||
+          sqlTrimmed.startsWith("DELETE") ||
+          sqlTrimmed.startsWith("INSERT")
+        ) {
+          message = `${result.rowCount ?? 0} rows affected`;
+        }
+      }
+
       setQueryResult({
         columns,
         rows,
         rowCount: result.rowCount ?? rows.length,
+        message,
       });
 
       const endTime = performance.now();
@@ -461,6 +641,8 @@ export function useQuery({
     executeQuery,
     explainAnalyzeQuery,
     newQuery,
-    newQueryWithContext
+    newQueryWithContext,
+    dmlConfirmation,
+    setDmlConfirmation,
   };
 }

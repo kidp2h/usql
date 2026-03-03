@@ -1,31 +1,18 @@
 "use client";
 
 import * as React from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  ColumnDef,
-  RowSelectionState,
-} from "@tanstack/react-table";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Clock, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
-import type { QueryResult } from "@/components/query/types";
 import { Badge } from "@/components/ui/badge";
+import { Clock, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import type { QueryResult } from "@/components/query/types";
+
 import { QueryResultsContextMenu } from "./query-results-context-menu";
+import { ResultsTable } from "@/components/query/v2/results-table";
+import { useCellSelection } from "@/hooks/use-cell-selection";
+import { useExport } from "@/hooks/use-export";
 
 type QueryResultsPanelProps = {
   isExecuting: boolean;
@@ -36,107 +23,31 @@ type QueryResultsPanelProps = {
 };
 
 export const QueryResultsPanel = React.memo(function QueryResultsPanel({
-  isExecuting,
-  queryResult,
-  isExplainMode,
-  executionTime,
-  copyText,
+  isExecuting, queryResult, isExplainMode, executionTime, copyText,
 }: QueryResultsPanelProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
-  const tableContainerRef = React.useRef<HTMLDivElement>(null);
-  const footerSummaryRef = React.useRef<HTMLDivElement>(null);
-  const footerSummaryContentRef = React.useRef<HTMLSpanElement>(null);
+  // ✅ Chỉ giữ count để hiển thị badge ở footer
+  const [selectionCount, setSelectionCount] = React.useState(0);
 
-  // A Set of "row,col" strings that holds firmly selected cells (e.g. from previous Ctrl+clicks)
-  const finalizedSelectionRef = React.useRef<Set<string>>(new Set());
+  // ✅ Ref để lấy selected rows cho useExport, không trigger re-render
+  const getSelectedRowsRef = React.useRef<() => Record<string, unknown>[]>(() => []);
 
-  // Data cell drag selection state
-  const isSelectingCellRef = React.useRef(false);
-  const selectionStartRef = React.useRef<{ row: number, col: number } | null>(null);
-  const selectionEndRef = React.useRef<{ row: number, col: number } | null>(null);
+  const {
+    tableContainerRef, footerSummaryRef, footerSummaryContentRef,
+    finalizedSelectionRef, handleCellMouseDown, handleCellMouseEnter,
+    handleCopy: _handleCopy, handleCopyInStatement: _handleCopyInStatement,
+  } = useCellSelection(copyText);
 
-  const updateSelectionDOM = React.useCallback((startRow: number, startCol: number, endRow: number, endCol: number) => {
-    const minRow = Math.min(startRow, endRow);
-    const maxRow = Math.max(startRow, endRow);
-    const minCol = Math.min(startCol, endCol);
-    const maxCol = Math.max(startCol, endCol);
+  const handleCopy = React.useCallback(() => {
+    _handleCopy();
+    toast.success("Copied table selection to clipboard");
+  }, [_handleCopy]);
 
-    // Fast path: find all cells and toggle data-selected based on current drag matrix OR previously finalized cells
-    const allCells = tableContainerRef.current?.querySelectorAll('.data-cell') || [];
-
-    let sum = 0;
-    let count = 0;
-    let hasNonNumeric = false;
-
-    allCells.forEach(cell => {
-      const r = parseInt(cell.getAttribute('data-row') || '-1', 10);
-      const c = parseInt(cell.getAttribute('data-col') || '-1', 10);
-
-      const isInCurrentDrag = (r >= minRow && r <= maxRow && c >= minCol && c <= maxCol);
-      const isInPrevious = finalizedSelectionRef.current.has(`${r},${c}`);
-
-      if (isInCurrentDrag || isInPrevious) {
-        cell.setAttribute('data-selected', 'true');
-        count++;
-
-        const text = (cell.textContent || "").trim();
-        if (text !== "") {
-          if (text.toLowerCase() === "null") {
-            hasNonNumeric = true;
-          } else {
-            const cleanText = text.replace(/,/g, '');
-            const num = Number(cleanText);
-            if (Number.isNaN(num)) {
-              hasNonNumeric = true;
-            } else {
-              sum += num;
-            }
-          }
-        }
-      } else {
-        cell.removeAttribute('data-selected');
-      }
-    });
-
-    if (footerSummaryContentRef.current && footerSummaryRef.current) {
-      if (count === 0) {
-        footerSummaryContentRef.current.textContent = "";
-        footerSummaryRef.current.classList.add('invisible');
-      } else if (hasNonNumeric) {
-        footerSummaryContentRef.current.textContent = `Count: ${count}`;
-        footerSummaryRef.current.classList.remove('invisible');
-      } else {
-        const displaySum = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(sum);
-        footerSummaryContentRef.current.textContent = `Count: ${count} | Sum: ${displaySum}`;
-        footerSummaryRef.current.classList.remove('invisible');
-      }
-    }
-  }, []);
-
-  React.useEffect(() => {
-    const handleMouseUp = () => {
-      if (isSelectingCellRef.current && selectionStartRef.current && selectionEndRef.current) {
-        // When mouse drag ends, "bake" the current drag matrix into the finalized selection set
-        const start = selectionStartRef.current;
-        const end = selectionEndRef.current;
-        const minRow = Math.min(start.row, end.row);
-        const maxRow = Math.max(start.row, end.row);
-        const minCol = Math.min(start.col, end.col);
-        const maxCol = Math.max(start.col, end.col);
-
-        for (let r = minRow; r <= maxRow; r++) {
-          for (let c = minCol; c <= maxCol; c++) {
-            finalizedSelectionRef.current.add(`${r},${c}`);
-          }
-        }
-      }
-      isSelectingCellRef.current = false;
-    };
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, []);
+  const handleCopyInStatement = React.useCallback(() => {
+    _handleCopyInStatement();
+    toast.success("Copied IN statement to clipboard");
+  }, [_handleCopyInStatement]);
 
   const columns = React.useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     if (!queryResult) return [];
@@ -147,11 +58,8 @@ export const QueryResultsPanel = React.memo(function QueryResultsPanel({
       header: ({ table }) => (
         <div className="flex w-full items-center justify-center">
           <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
             aria-label="Select all"
             className="translate-y-[2px]"
           />
@@ -161,7 +69,7 @@ export const QueryResultsPanel = React.memo(function QueryResultsPanel({
         <div className="flex w-full items-center justify-center">
           <Checkbox
             checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
             aria-label="Select row"
             className="translate-y-[2px]"
           />
@@ -174,311 +82,109 @@ export const QueryResultsPanel = React.memo(function QueryResultsPanel({
     const dataColumns = queryResult.columns.map((col) => ({
       accessorKey: col,
       header: col,
-      cell: (info) => {
+      cell: (info: any) => {
         const value = info.getValue();
-        if (value === null || value === undefined) {
-          return <span className="text-muted-foreground italic">null</span>;
-        }
-        if (typeof value === "object") {
-          return <span className="text-cyan-600 dark:text-cyan-400 font-mono text-xs">{JSON.stringify(value)}</span>;
-        }
-        if (typeof value === "number") {
-          return <span className="text-blue-600 dark:text-blue-400">{String(value)}</span>;
-        }
-        return <span className="text-green-700 dark:text-green-400 truncate max-w-[300px] inline-block">{String(value)}</span>
-      }
+        if (value === null || value === undefined) return <span className="text-muted-foreground italic">null</span>;
+        if (typeof value === "object") return <span className="text-cyan-600 dark:text-cyan-400 font-mono text-xs">{JSON.stringify(value)}</span>;
+        if (typeof value === "number") return <span className="text-blue-600 dark:text-blue-400">{String(value)}</span>;
+        return <span className="text-green-700 dark:text-green-400 truncate max-w-[300px] inline-block">{String(value)}</span>;
+      },
     }));
 
-    if (queryResult.rowCount === 0) {
-      return dataColumns;
-    }
-
-    return [selectColumn, ...dataColumns];
+    return queryResult.rowCount === 0 ? dataColumns : [selectColumn, ...dataColumns];
   }, [queryResult]);
 
-  const data = React.useMemo(() => {
-    return queryResult?.rows ?? [];
-  }, [queryResult]);
+  const data = React.useMemo(() => queryResult?.rows ?? [], [queryResult]);
 
-  const table = useReactTable({
+  // ✅ useExport đọc selected rows từ ref
+  useExport(
+    queryResult,
+    () => getSelectedRowsRef.current(),
     data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    onRowSelectionChange: setRowSelection,
-    enableRowSelection: true,
-    state: {
-      sorting,
-      rowSelection,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 100,
-      }
-    }
-  });
-
-  const getSelectedMatrix = React.useCallback(() => {
-    const selectedCells = Array.from(tableContainerRef.current?.querySelectorAll('.data-cell[data-selected="true"]') || []);
-    if (selectedCells.length === 0) return null;
-
-    const rowMap = new Map<number, { col: number, text: string, type: string }[]>();
-    selectedCells.forEach(cell => {
-      const r = parseInt(cell.getAttribute('data-row') || '-1', 10);
-      const c = parseInt(cell.getAttribute('data-col') || '-1', 10);
-      const type = cell.getAttribute('data-type') || 'string';
-      const text = cell.textContent || "";
-      if (!rowMap.has(r)) rowMap.set(r, []);
-      rowMap.get(r)!.push({ col: c, text, type });
-    });
-    return rowMap;
-  }, []);
-
-  const handleCopy = React.useCallback(() => {
-    const rowMap = getSelectedMatrix();
-    if (!rowMap) return;
-
-    const sortedRows = Array.from(rowMap.keys()).sort((a, b) => a - b);
-    const matrixString = sortedRows.map(r => {
-      const cols = rowMap.get(r)!;
-      cols.sort((a, b) => a.col - b.col);
-      return cols.map(c => c.text !== "null" ? c.text : "NULL").join('\t');
-    }).join('\n');
-
-    copyText(matrixString);
-    toast.success(`Copied table selection to clipboard`);
-  }, [getSelectedMatrix, copyText]);
-
-  const handleCopyInStatement = React.useCallback(() => {
-    const rowMap = getSelectedMatrix();
-    if (!rowMap) return;
-
-    const values: string[] = [];
-    rowMap.forEach(cols => {
-      cols.forEach(c => {
-        if (c.text !== "null") {
-          const value = c.type === "number" ? c.text : `'${c.text.replace(/'/g, "''")}'`;
-          values.push(value);
-        }
-      });
-    });
-
-    if (values.length === 0) return;
-
-    // De-duplicate values for IN statement
-    const uniqueValues = Array.from(new Set(values));
-    const inStatement = `IN (${uniqueValues.join(', ')})`;
-    copyText(inStatement);
-    toast.success(`Copied IN statement to clipboard`);
-  }, [getSelectedMatrix, copyText]);
+  );
 
   if (isExecuting) {
     return (
       <div className="flex h-full w-full items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="size-8 animate-spin text-muted-foreground/50" />
-          <span className="text-sm font-medium text-muted-foreground/70 animate-pulse">
-            Executing query...
-          </span>
+          <span className="text-sm font-medium text-muted-foreground/70 animate-pulse">Executing query...</span>
         </div>
       </div>
     );
   }
 
   if (queryResult?.error) {
-    return (
-      <div className="p-4 text-red-500 font-mono whitespace-pre-wrap">
-        {queryResult.error}
-      </div>
-    )
+    return <div className="p-4 text-red-500 font-mono whitespace-pre-wrap">{queryResult.error}</div>;
   }
 
   if (!queryResult) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No results
-      </div>
-    );
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No results</div>;
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b px-4 py-1.5 text-xs bg-muted/50">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-4 py-1.5 text-xs bg-muted/50 shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Query Results</span>
           {isExplainMode && (
-            <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 py-0 h-4 text-[9px] font-bold">
-              EXPLAIN
-            </Badge>
+            <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 py-0 h-4 text-[9px] font-bold">EXPLAIN</Badge>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground font-medium">Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}</span>
-          <div className="flex gap-1 ml-2">
-            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-              <ChevronLeft className="size-3" />
-            </Button>
-            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-              <ChevronRight className="size-3" />
-            </Button>
-          </div>
         </div>
       </div>
 
-      <QueryResultsContextMenu onCopy={handleCopy} onCopyInStatement={handleCopyInStatement}>
-        <div
-          className="flex-1 overflow-auto relative focus:outline-none"
-          ref={tableContainerRef}
-          tabIndex={-1}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
-              e.preventDefault();
-              handleCopy();
-            }
-            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
-              e.preventDefault();
-              handleCopyInStatement();
-            }
-          }}
-        >
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className={`group whitespace-nowrap py-2 font-semibold select-none sticky top-0 z-20 bg-background shadow-[0_1px_0_hsl(var(--border))] border-r last:border-r-0 ${header.column.getCanSort() ? "cursor-pointer" : ""} ${header.id === "select" ? "w-[40px] min-w-[40px] max-w-[40px] px-0" : "px-4"}`}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <div className={`flex items-center w-full ${header.id === "select" ? "justify-center" : "justify-between"}`}>
-                            <div className="flex items-center gap-1">
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                            </div>
-                            {header.column.getCanSort() && (
-                              <div className="ml-2 flex-shrink-0">
-                                {header.column.getIsSorted() === "asc" ? (
-                                  <ArrowUp className="size-3.5 text-foreground" />
-                                ) : header.column.getIsSorted() === "desc" ? (
-                                  <ArrowDown className="size-3.5 text-foreground" />
-                                ) : (
-                                  <ArrowUpDown className="size-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </TableHead>
-                    )
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className="hover:bg-muted/50"
-                  >
-                    {row.getVisibleCells().map((cell, cIndex) => {
-                      const isSelectCol = cell.column.id === "select";
-                      // During render, paint firmly selected cells. Current drag matrix uses DOM overriding anyway,
-                      // but on initial render/pagination we need to paint what was finalized.
-                      const isSelected = finalizedSelectionRef.current.has(`${row.index},${cIndex}`);
-                      return (
-                        <TableCell
-                          key={cell.id}
-                          data-row={row.index}
-                          data-col={cIndex}
-                          data-type={isSelectCol ? undefined : typeof cell.getValue()}
-                          data-selected={isSelected ? "true" : undefined}
-                          className={`data-cell select-none whitespace-nowrap font-mono text-sm max-w-[400px] border-r border-b last:border-r-0 bg-background data-[selected=true]:bg-blue-500/20 dark:data-[selected=true]:bg-blue-500/30 ${isSelectCol ? "w-[40px] min-w-[40px] max-w-[40px] p-0" : "px-4 py-1.5 cursor-cell"}`}
-                          onMouseDown={(e) => {
-                            if (isSelectCol) return;
+      {/* Body */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <QueryResultsContextMenu onCopy={handleCopy} onCopyInStatement={handleCopyInStatement}>
+          {queryResult.message && queryResult.rows.length === 0 ? (
+            <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-300">
+              <div className="relative mb-6">
+                <div className="absolute -inset-4 bg-blue-500/10 rounded-full blur-xl animate-pulse" />
+                <div className="relative flex items-center justify-center size-20 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-3xl border border-blue-500/20 text-blue-600 dark:text-blue-400 shadow-sm">
+                  <div className="absolute inset-0 bg-white/5 rounded-3xl" />
+                  <Clock className="size-10 relative z-10" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold tracking-tight mb-2 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">{queryResult.message}</h3>
+              <p className="text-muted-foreground font-medium text-md">Query executed successfully in <span className="text-foreground">{executionTime}ms</span></p>
+            </div>
+          ) : (
+            <ResultsTable
+              data={data}
+              columns={columns}
+              sorting={sorting}
+              onSortingChange={setSorting}
+              onSelectionChange={setSelectionCount}
+              getSelectedRowsRef={getSelectedRowsRef}
+              tableContainerRef={tableContainerRef}
+              finalizedSelectionRef={finalizedSelectionRef}
+              onCellMouseDown={handleCellMouseDown}
+              onCellMouseEnter={handleCellMouseEnter}
+              onCopy={handleCopy}
+              onCopyInStatement={handleCopyInStatement}
+            />
+          )}
+        </QueryResultsContextMenu>
+      </div>
 
-                            const isAlreadySelected = finalizedSelectionRef.current.has(`${row.index},${cIndex}`);
-
-                            if (e.button === 2) {
-                              // On right click: if cell is already selected, do nothing (preserve selection for context menu)
-                              if (isAlreadySelected) return;
-
-                              // If it's not selected, we clear the previous selection and select this single cell
-                              finalizedSelectionRef.current.clear();
-                              updateSelectionDOM(row.index, cIndex, row.index, cIndex);
-                              finalizedSelectionRef.current.add(`${row.index},${cIndex}`);
-                              return;
-                            }
-
-                            e.preventDefault();
-                            tableContainerRef.current?.focus();
-
-                            // If ctrl/cmd is NOT held, clear the existing selection so we start a fresh one, just like Excel
-                            if (!e.ctrlKey && !e.metaKey) {
-                              finalizedSelectionRef.current.clear();
-                            }
-
-                            isSelectingCellRef.current = true;
-                            selectionStartRef.current = { row: row.index, col: cIndex };
-                            selectionEndRef.current = { row: row.index, col: cIndex };
-                            updateSelectionDOM(row.index, cIndex, row.index, cIndex);
-                          }}
-                          onMouseEnter={(e) => {
-                            if (isSelectCol) return;
-                            if (isSelectingCellRef.current && selectionStartRef.current) {
-                              selectionEndRef.current = { row: row.index, col: cIndex };
-                              updateSelectionDOM(selectionStartRef.current.row, selectionStartRef.current.col, row.index, cIndex);
-                            }
-                          }}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No results.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </QueryResultsContextMenu>
+      {/* Footer */}
       <div className="border-t bg-muted/40 px-4 py-1 flex items-center shrink-0 min-h-[34px] justify-between">
         <div className="flex items-center gap-2 flex-1">
-          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 py-0.5 px-2 font-semibold">
-            {queryResult.rowCount} rows
-          </Badge>
-
+          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 py-0.5 px-2 font-semibold">{queryResult.rowCount} rows</Badge>
           {executionTime !== null && (
             <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 py-0.5 px-2 font-semibold">
-              <Clock className="size-3 mr-1" />
-              {executionTime}ms
+              <Clock className="size-3 mr-1" />{executionTime}ms
             </Badge>
           )}
-
-          {Object.keys(rowSelection).length > 0 && (
-            <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 py-0.5 px-2 font-semibold">
-              {Object.keys(rowSelection).length} selected rows
-            </Badge>
+          {/* ✅ Dùng selectionCount thay vì Object.keys(rowSelection).length */}
+          {selectionCount > 0 && (
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 py-0.5 px-2 font-semibold">{selectionCount} selected rows</Badge>
           )}
         </div>
-
         <div ref={footerSummaryRef} className="flex items-center invisible select-none">
           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 py-0.5 px-2 font-semibold">
-            <span ref={footerSummaryContentRef}></span>
+            <span ref={footerSummaryContentRef} />
           </Badge>
         </div>
       </div>

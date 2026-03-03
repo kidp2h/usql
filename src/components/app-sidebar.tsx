@@ -27,7 +27,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, Shortcut } from "@/components/ui/kbd";
 import {
   Sidebar,
   SidebarContent,
@@ -543,7 +543,7 @@ ORDER BY ordinal_position;`;
                 }}
               >
                 New query
-                <Kbd className="ml-auto text-xs">⌘+N</Kbd>
+                <Shortcut shortcut="⌘ + N" />
               </ContextMenuItem>
               <ContextMenuItem
                 onSelect={() => {
@@ -556,7 +556,7 @@ ORDER BY ordinal_position;`;
                 }}
               >
                 View comment
-                <Kbd className="ml-auto text-xs">⌘ + ⌥ + C</Kbd>
+                <Shortcut className="ml-auto" shortcut="⌘ + ⌥ + C" />
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
@@ -1323,7 +1323,7 @@ ORDER BY ordinal_position;`;
                         >
                           <RefreshCw className="mr-2 size-4" />
                           Refresh
-                          <Kbd className="ml-auto text-xs">⌘ + ⇧ + R</Kbd>
+                          <Shortcut className="ml-auto" shortcut="⌘ + ⇧ + R" />
                         </ContextMenuItem>
                         <ContextMenuItem
                           onSelect={() =>

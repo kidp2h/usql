@@ -9,7 +9,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, Shortcut } from "@/components/ui/kbd";
 import type { QueryTab } from "@/stores/tab-store";
 
 type QueryTabsBarProps = {
@@ -150,11 +150,11 @@ export function QueryTabsBar({
               <ContextMenuContent>
                 <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>
                   Close tab
-                  <Kbd className="ml-auto text-xs">⌘ + W</Kbd>
+                  <Shortcut shortcut="⌘ + W" />
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCloseAllTabs()}>
                   Close all tabs
-                  <Kbd className="ml-auto text-xs">⌘ + ⇧ + W</Kbd>
+                  <Shortcut shortcut="⌘ + ⇧ + W" />
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>

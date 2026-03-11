@@ -22,6 +22,7 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
+    "node-sql-parser": "^5.4.0",
     "pg": "^8.18.0"
   },
   "devDependencies": {

@@ -4,6 +4,127 @@ import { useConnection } from '@/hooks/use-connection';
 import { buildSuggestions, parseConnectionSchema, getQueryAtCursor } from '@/lib/suggestions';
 import Editor from '@monaco-editor/react';
 import * as React from 'react';
+import { Parser } from 'node-sql-parser';
+
+const parser = new Parser();
+
+function validateSQL(sql: string, monaco: any, clientType: string = 'PostgreSQL'): any[] {
+  const markers: any[] = [];
+  if (!sql.trim()) return markers;
+
+  try {
+    let dbOpt = 'PostgreSQL';
+    if (clientType === 'mysql' || clientType === 'MySQL') dbOpt = 'MySQL';
+    else if (clientType === 'mariadb' || clientType === 'MariaDB') dbOpt = 'MariaDB';
+    else if (clientType === 'sqlite' || clientType === 'SQLite') dbOpt = 'sqlite';
+    parser.parse(sql, { database: dbOpt });
+  } catch (e: any) {
+    const loc = e.location?.start;
+    markers.push({
+      startLineNumber: loc?.line ?? 1,
+      startColumn: loc?.column ?? 1,
+      endLineNumber: loc?.line ?? 1,
+      endColumn: (loc?.column ?? 1) + 20,
+      message: e.message ?? 'SQL syntax error',
+      severity: monaco.MarkerSeverity.Error,
+    });
+  }
+
+  return markers;
+}
+
+function injectErrorLensStyles() {
+  const id = 'error-lens-styles';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  // .monaco-editor prefix needed to override Monaco's own token color classes (mtk1, etc.)
+  style.innerHTML = `
+    .monaco-editor .error-lens-line {
+      background-color: rgba(255, 50, 50, 0.08) !important;
+      border-left: 2px solid #f44747 !important;
+    }
+    .monaco-editor .warning-lens-line {
+      background-color: rgba(255, 200, 0, 0.08) !important;
+      border-left: 2px solid #cca700 !important;
+    }
+    .monaco-editor .error-lens-message {
+      color: #f44747 !important;
+      font-style: italic !important;
+      opacity: 0.9 !important;
+      letter-spacing: 0 !important;
+      font-family: 'Geist Mono';
+      width: max-content;
+    }
+    .monaco-editor .warning-lens-message {
+      color: #cca700 !important;
+      font-style: italic !important;
+      opacity: 0.9 !important;
+      letter-spacing: 0 !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Store active error widgets so we can remove them
+const errorWidgets: any[] = [];
+
+function clearErrorWidgets(editor: any) {
+  errorWidgets.forEach((w) => editor.removeContentWidget(w));
+  errorWidgets.length = 0;
+}
+
+function applyErrorLens(
+  editor: any,
+  monaco: any,
+  markers: any[],
+  prevIds: string[]
+): string[] {
+  // Clear old line background decorations
+  const cleared = editor.deltaDecorations(prevIds, []);
+
+  // Clear old message widgets
+  clearErrorWidgets(editor);
+
+  if (!markers.length) return cleared;
+
+  // Line background decorations
+  const decorations = markers.map((marker) => {
+    const isError = marker.severity === monaco.MarkerSeverity.Error;
+    return {
+      range: new monaco.Range(marker.startLineNumber, 1, marker.startLineNumber, 1),
+      options: {
+        isWholeLine: true,
+        className: isError ? 'error-lens-line' : 'warning-lens-line',
+      },
+    };
+  });
+  const ids = editor.deltaDecorations([], decorations);
+
+  // ContentWidget for each message — real DOM node, always visible
+  markers.forEach((marker, i) => {
+    const isError = marker.severity === monaco.MarkerSeverity.Error;
+
+    const domNode = document.createElement('span');
+    domNode.className = isError ? 'error-lens-message' : 'warning-lens-message';
+    domNode.textContent = '\u00a0\u00a0' + marker.message;
+
+    const widget = {
+      getId: () => `error-lens-widget-${i}-${marker.startLineNumber}`,
+      getDomNode: () => domNode,
+      getPosition: () => ({
+        position: { lineNumber: marker.startLineNumber, column: 9999 },
+        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
+      }),
+    };
+
+    editor.addContentWidget(widget);
+    errorWidgets.push(widget);
+  });
+
+  return ids;
+}
+
 
 type QueryEditorProps = {
   value?: string;
@@ -27,8 +148,20 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
   const monacoRef = React.useRef<any>(null);
   const decorationsRef = React.useRef<string[]>([]);
   const clearTimerRef = React.useRef<any>(null);
+  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
+  const errorLensIdsRef = React.useRef<string[]>([]);
+  const lastMarkersRef = React.useRef<any[]>([]);
 
-  // Handle completion provider lifecycle
+  const validate = React.useCallback(
+    (sql: string, model: any, editor: any, monaco: any) => {
+      const markers = validateSQL(sql, monaco, 'PostgreSQL');
+      lastMarkersRef.current = markers;
+      monaco.editor.setModelMarkers(model, 'sql-owner', markers);
+      errorLensIdsRef.current = applyErrorLens(editor, monaco, markers, errorLensIdsRef.current);
+    },
+    [activeConnection]
+  );
+
   React.useEffect(() => {
     if (!monacoRef.current) return;
 
@@ -64,10 +197,8 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
 
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
 
-      // Clear previous decorations
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
 
-      // Add new decoration: background + border + gutter line
       const newDecorations = editor.deltaDecorations([], [
         {
           range: new monaco.Range(
@@ -85,7 +216,6 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
       ]);
       decorationsRef.current = newDecorations;
 
-      // Ensure it's in view
       editor.revealRangeInCenterIfOutsideViewport(new monaco.Range(
         range.startLineNumber,
         range.startColumn,
@@ -93,7 +223,6 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
         range.endColumn
       ));
 
-      // Remove after a longer delay (1.5s for visibility test)
       clearTimerRef.current = setTimeout(() => {
         if (editorRef.current) {
           decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
@@ -116,10 +245,30 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
       onChange={onChange}
       beforeMount={(monaco) => {
         applyEditorTheme(monaco, isDark);
+        injectErrorLensStyles();
       }}
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+
+        const model = editor.getModel();
+        if (model) {
+          validate(editor.getValue(), model, editor, monaco);
+
+          editor.onDidChangeModelContent(() => {
+            // Re-apply lens instantly with last known markers (keeps message visible while typing)
+            errorLensIdsRef.current = applyErrorLens(editor, monaco, lastMarkersRef.current, errorLensIdsRef.current);
+
+            // Re-validate after debounce
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+              const currentModel = editor.getModel();
+              if (currentModel) {
+                validate(editor.getValue(), currentModel, editor, monaco);
+              }
+            }, 500);
+          });
+        }
 
         if (onEditorMount) {
           onEditorMount(() => {
@@ -134,7 +283,6 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
               };
             }
 
-            // No selection - find query at cursor
             const position = editor.getPosition();
             if (!position) return null;
 
@@ -147,7 +295,6 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
           editor.onDidBlurEditorText(() => onEditorFocusChange(false));
         }
 
-        // Global shortcuts for execution
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
           globalThis.dispatchEvent(new CustomEvent('usql:command', { detail: { type: 'execute' } }));
         });
@@ -193,5 +340,3 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
     />
   );
 }
-
-

@@ -639,6 +639,19 @@ export function parseConnectionSchema(connection: any): TableSchema[] {
     }));
 }
 
+export function parseConnectionCmSchema(connection: any): Record<string, string[]> {
+  return (connection?.children ?? [])
+      .flatMap((schema: any) => schema.children ?? [])
+      .reduce((acc: Record<string, string[]>, table: any) => {
+        acc[table.name] = (
+            table.children
+                ?.find((c: any) => c.name === 'Columns')
+                ?.children ?? []
+        ).map((col: any) => col.name as string)
+        return acc
+      }, {})
+}
+
 export function getQueryAtCursor(model: any, position: any, monaco: any): { text: string; range: any } | null {
   const fullText: string = model.getValue();
   const cursorOffset: number = model.getOffsetAt(position);

@@ -9,18 +9,18 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useSidebar } from "@/components/ui/sidebar";
-import { useTabStore } from "@/stores/tab-store";
 import { Alpha } from "@/components/alpha";
 import { useQuery } from "@/hooks/use-query";
-import { QueryEditor } from "@/components/query/query-editor";
 
 import { DMLConfirmationDialog } from "@/components/query/dml-confirmation-dialog";
+import {SqlEditor} from "@/components/query/query-codemirror-editor";
+import {useTheme} from "@/hooks/use-theme";
 
 export default function Home() {
   const { setOpen } = useSidebar();
-  const [isEditorFocused, setIsEditorFocused] = React.useState(false);
-  const setQuerySql = useTabStore((state) => state.setQuerySql);
-
+  const [isEditorFocused,] = React.useState(false);
+  const [query, setQuery] = React.useState('')
+  const { theme } = useTheme();
   const {
     queryResult,
     isExecuting,
@@ -30,7 +30,6 @@ export default function Home() {
     activeTab,
     handleOpenFileChange,
     copyText,
-    getSelectedTextRef,
     executeQuery,
     dmlConfirmation,
     setDmlConfirmation,
@@ -53,16 +52,7 @@ export default function Home() {
             <QueryTabsBar />
             <ResizablePanelGroup orientation="vertical" className="flex-1 min-w-0">
               <ResizablePanel defaultSize={50} minSize={15}>
-                <QueryEditor
-                  value={activeTab.sql}
-                  onChange={(value) => {
-                    if (value !== undefined) setQuerySql(value);
-                  }}
-                  onEditorMount={(getSelection) => {
-                    getSelectedTextRef.current = getSelection;
-                  }}
-                  onEditorFocusChange={setIsEditorFocused}
-                />
+                <SqlEditor value={query} onChange={setQuery} theme={theme} />
               </ResizablePanel>
               {activeTab ? (<ResizableHandle withHandle />) : null}
               {activeTab ? (<ResizablePanel defaultSize={50} minSize={15}>

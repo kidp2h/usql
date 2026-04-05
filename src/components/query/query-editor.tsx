@@ -1,7 +1,7 @@
 // query-editor.tsx
-import { useMonacoTheme } from '@/hooks/use-monaco-theme';
-import { useConnection } from '@/hooks/use-connection';
-import { buildSuggestions, parseConnectionSchema, getQueryAtCursor } from '@/lib/suggestions';
+import {useMonacoTheme} from '@/hooks/use-monaco-theme';
+import {useConnection} from '@/hooks/use-connection';
+import {buildSuggestions, getQueryAtCursor, parseConnectionSchema} from '@/lib/suggestions';
 import Editor from '@monaco-editor/react';
 import * as React from 'react';
 
@@ -68,13 +68,13 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
 
       // Add new decoration: background + border + gutter line
-      const newDecorations = editor.deltaDecorations([], [
+      decorationsRef.current = editor.deltaDecorations([], [
         {
           range: new monaco.Range(
-            range.startLineNumber,
-            1,
-            range.endLineNumber,
-            1
+              range.startLineNumber,
+              1,
+              range.endLineNumber,
+              1
           ),
           options: {
             isWholeLine: true,
@@ -83,7 +83,6 @@ export function QueryEditor({ value, onChange, onEditorMount, onEditorFocusChang
           }
         }
       ]);
-      decorationsRef.current = newDecorations;
 
       // Ensure it's in view
       editor.revealRangeInCenterIfOutsideViewport(new monaco.Range(

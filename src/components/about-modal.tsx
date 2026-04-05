@@ -20,9 +20,11 @@ export function AboutModal({ open, onOpenChange }: AboutModalProps) {
         <Dialog open={open} onOpenChange={onOpenChange}>
 
             <DialogContent className="sm:max-w-sm" showCloseButton={false}>
-                <WindowControls onClose={() => {
-                    onOpenChange(false);
-                }} bgColor="bg-none" className="py-3" />
+                <WindowControls
+                    onClose={() => {
+                        onOpenChange(false);
+                    }}
+                    bgColor="bg-none" className="py-3" />
                 <DialogHeader>
 
                     <DialogTitle>About uSQL</DialogTitle>

@@ -1,4 +1,5 @@
 import * as React from "react";
+import {ThemeContext} from "@/providers/theme-provider";
 
 const storageKey = "theme";
 
@@ -16,28 +17,7 @@ export function getPreferredTheme(): Theme {
 }
 
 export function useTheme() {
-  const [theme, setTheme] = React.useState<Theme>(getPreferredTheme());
-
-  React.useEffect(() => {
-    const preferred = getPreferredTheme();
-    setTheme(preferred);
-    document.documentElement.classList.toggle("dark", preferred === "dark");
-  }, [theme]);
-
-  const toggleTheme = React.useCallback(() => {
-    setTheme((current) => {
-      const next = current === "dark" ? "light" : "dark";
-      document.documentElement.classList.toggle("dark", next === "dark");
-      window.localStorage.setItem(storageKey, next);
-      return next;
-    });
-  }, []);
-
-  const setThemeMode = React.useCallback((mode: Theme) => {
-    setTheme(mode);
-    document.documentElement.classList.toggle("dark", mode === "dark");
-    window.localStorage.setItem(storageKey, mode);
-  }, []);
-
-  return { theme, toggleTheme, setThemeMode };
+  const ctx = React.useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used inside ThemeProvider");
+  return ctx;
 }

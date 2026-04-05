@@ -10,7 +10,7 @@ import {
 import { WindowControls } from "./window-controls";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./ui/select";
-import { getPreferredTheme, Theme, useTheme } from "@/hooks/use-theme";
+import { Theme } from "@/hooks/use-theme";
 import React from "react";
 import { Field, FieldDescription, FieldLabel } from "./ui/field";
 import { Input } from "./ui/input";
